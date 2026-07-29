@@ -38,6 +38,13 @@ class StorageService:
 
         return object_name
 
-    def get_file_url(self, object_name):
-        """Returns a presigned URL for the object."""
-        return self.client.presigned_get_object(self.bucket_name, object_name)
+    def get_file_url(self, object_name, expires=None):
+        from datetime import timedelta
+        if expires is None:
+            expires = timedelta(hours=1)
+        return self.client.presigned_get_object(
+            self.bucket_name, object_name, expires=expires
+        )
+
+    def get_file_stream(self, object_name):
+        return self.client.get_object(self.bucket_name, object_name)
