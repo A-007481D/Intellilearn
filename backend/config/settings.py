@@ -143,3 +143,6 @@ CELERY_RESULT_BACKEND = os.environ.get(
 )
 CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
+
+# AI / Embeddings Settings
+GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', '')
