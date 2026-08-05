@@ -4,9 +4,9 @@ from unittest.mock import MagicMock, patch
 from django.contrib.auth import get_user_model
 from django.db import connection
 from django.test import TestCase
-from rest_framework.test import APITestCase
-from rest_framework import status
 from django.urls import reverse
+from rest_framework import status
+from rest_framework.test import APITestCase
 
 from apps.documents.models import Document, DocumentStatus
 from apps.knowledge.models import DocumentChunk
