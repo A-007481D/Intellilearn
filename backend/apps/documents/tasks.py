@@ -46,15 +46,13 @@ def process_document_task(document_id):
         with transaction.atomic():
             for chunk_text, embedding in zip(chunks, embeddings):
                 DocumentChunk.objects.create(
-                    document=doc,
-                    content=chunk_text,
-                    embedding=embedding
+                    document=doc, content=chunk_text, embedding=embedding
                 )
 
         doc.status = DocumentStatus.READY
         doc.save()
         return "Success"
-        
+
     except Exception as e:  # noqa: BLE001
         Document.objects.filter(id=document_id).update(status=DocumentStatus.FAILED)
         return f"Failed: {e!s}"
