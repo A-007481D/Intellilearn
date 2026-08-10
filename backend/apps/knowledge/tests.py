@@ -69,6 +69,8 @@ class RetrieverTests(TestCase):
 class ContextMock:
     def __init__(self, content):
         self.content = content
+        self.id = 1
+        self.pk = 1
 
 
 class BuilderAndLLMTests(TestCase):
@@ -95,32 +97,40 @@ class BuilderAndLLMTests(TestCase):
         self.assertEqual(response_text, "Mocked answer")
         mock_client.models.generate_content.assert_called_once()
 
+
 class ChatViewTests(APITestCase):
     def setUp(self):
-        self.user = User.objects.create_user(email='chat@test.com', password='foo')
+        self.user = User.objects.create_user(email="chat@test.com", password="foo")
         self.client.force_authenticate(user=self.user)
-        self.url = reverse('chat')
+        self.url = reverse("chat")
 
-    @patch('apps.knowledge.views.GeminiLLMService')
-    @patch('apps.knowledge.views.VectorRetriever')
-    @patch('apps.knowledge.views.GeminiEmbeddingService')
+    @patch("apps.knowledge.views.GeminiLLMService")
+    @patch("apps.knowledge.views.VectorRetriever")
+    @patch("apps.knowledge.views.GeminiEmbeddingService")
     def test_chat_success(self, mock_embedding, mock_retriever, mock_llm):
+        doc = Document.objects.create(user=self.user, title="Test", file_path="test.pdf", status=DocumentStatus.READY)
+        chunk = DocumentChunk.objects.create(document=doc, content="Context one.", embedding=[0.0]*768)
+        
         # Mock embeddings
         mock_embedding_inst = mock_embedding.return_value
-        mock_embedding_inst.generate_embeddings.return_value = [[0.1]*768]
-        
+        mock_embedding_inst.generate_embeddings.return_value = [[0.1] * 768]
+
         # Mock retriever
-        mock_retriever.retrieve_context.return_value = [ContextMock("Context one.")]
-        
+        mock_retriever.retrieve_context.return_value = [chunk]
+
         # Mock LLM
         mock_llm_inst = mock_llm.return_value
         mock_llm_inst.generate_text.return_value = "This is the answer."
 
-        response = self.client.post(self.url, {'question': 'What is this?'}, format='json')
-        
+        response = self.client.post(
+            self.url, {"question": "What is this?"}, format="json"
+        )
+
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data['answer'], "This is the answer.")
-        
-        mock_embedding_inst.generate_embeddings.assert_called_once_with(["What is this?"])
+        self.assertEqual(response.data["answer"], "This is the answer.")
+
+        mock_embedding_inst.generate_embeddings.assert_called_once_with(
+            ["What is this?"]
+        )
         mock_retriever.retrieve_context.assert_called_once()
         mock_llm_inst.generate_text.assert_called_once()
