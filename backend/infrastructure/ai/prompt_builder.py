@@ -1,6 +1,6 @@
 class PromptBuilder:
     @staticmethod
-    def build_rag_prompt(question, contexts):
+    def build_rag_prompt(question, contexts, history=None):
         """
         Builds a prompt that combines the user's question with the retrieved contexts.
         """
@@ -14,7 +14,11 @@ Do not use outside knowledge.
 Context:
 {context_text}
 
-Question:
-{question}
-"""
+        """
+        if history:
+            prompt += "\nChat History:\n"
+            for msg in history:
+                prompt += f"{msg.role.upper()}: {msg.content}\n"
+
+        prompt += f"\nQuestion:\n{question}"
         return prompt
