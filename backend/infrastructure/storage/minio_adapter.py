@@ -40,6 +40,7 @@ class StorageService:
 
     def get_file_url(self, object_name, expires=None):
         from datetime import timedelta
+
         if expires is None:
             expires = timedelta(hours=1)
         return self.client.presigned_get_object(
