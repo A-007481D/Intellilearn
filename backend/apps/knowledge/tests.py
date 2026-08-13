@@ -109,10 +109,10 @@ class ChatViewTests(APITestCase):
         self.client.force_authenticate(user=self.user)
         self.url = reverse("chat")
 
-    @patch("apps.knowledge.views.GeminiLLMService")
+    @patch("apps.knowledge.views.AgentOrchestrator")
     @patch("apps.knowledge.views.VectorRetriever")
     @patch("apps.knowledge.views.GeminiEmbeddingService")
-    def test_chat_success(self, mock_embedding, mock_retriever, mock_llm):
+    def test_chat_success(self, mock_embedding, mock_retriever, mock_orchestrator):
         doc = Document.objects.create(
             user=self.user,
             title="Test",
@@ -130,9 +130,10 @@ class ChatViewTests(APITestCase):
         # Mock retriever
         mock_retriever.retrieve_context.return_value = [chunk]
 
-        # Mock LLM
-        mock_llm_inst = mock_llm.return_value
-        mock_llm_inst.generate_text.return_value = "This is the answer."
+        # Mock Orchestrator
+        mock_orch_inst = mock_orchestrator.return_value
+        mock_orch_inst.classify_intent.return_value = "QNA"
+        mock_orch_inst.answer_question.return_value = "This is the answer."
 
         response = self.client.post(
             self.url, {"question": "What is this?"}, format="json"
@@ -145,7 +146,8 @@ class ChatViewTests(APITestCase):
             ["What is this?"]
         )
         mock_retriever.retrieve_context.assert_called_once()
-        mock_llm_inst.generate_text.assert_called_once()
+        mock_orch_inst.classify_intent.assert_called_once()
+        mock_orch_inst.answer_question.assert_called_once()
 
 
 class QuizTests(APITestCase):
