@@ -22,3 +22,31 @@ Context:
 
         prompt += f"\nQuestion:\n{question}"
         return prompt
+
+
+class QuizPromptBuilder:
+    @staticmethod
+    def build_quiz_prompt(contexts, difficulty="medium", num_questions=5):
+        """
+        Builds a prompt instructing the LLM to generate a quiz in a strict JSON format.
+        """
+        context_text = "\n\n---\n\n".join([c.content for c in contexts])
+
+        prompt = f"""You are an expert educational assessment creator.
+Based ONLY on the provided context, generate a {difficulty} difficulty multiple-choice quiz with exactly {num_questions} questions.
+
+Your response MUST be a raw, valid JSON array of objects. Do not wrap the JSON in markdown code blocks. Do not add any conversational text.
+Format requirements:
+[
+  {{
+    "text": "The question text",
+    "options": ["Option A", "Option B", "Option C", "Option D"],
+    "correct_answer": "The exact string of the correct option",
+    "explanation": "Why this answer is correct based on the text"
+  }}
+]
+
+Context:
+{context_text}
+"""
+        return prompt
