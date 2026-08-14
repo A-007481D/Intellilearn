@@ -9,7 +9,12 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from apps.documents.models import Document, DocumentStatus
-from apps.knowledge.models import DocumentChunk
+from apps.knowledge.models import (
+    DocumentChunk,
+    Question,
+    Quiz,
+    QuizAttempt,
+)
 from infrastructure.ai.gemini_adapter import GeminiLLMService
 from infrastructure.ai.prompt_builder import PromptBuilder
 from infrastructure.ai.retriever import VectorRetriever
@@ -108,9 +113,16 @@ class ChatViewTests(APITestCase):
     @patch("apps.knowledge.views.VectorRetriever")
     @patch("apps.knowledge.views.GeminiEmbeddingService")
     def test_chat_success(self, mock_embedding, mock_retriever, mock_llm):
-        doc = Document.objects.create(user=self.user, title="Test", file_path="test.pdf", status=DocumentStatus.READY)
-        chunk = DocumentChunk.objects.create(document=doc, content="Context one.", embedding=[0.0]*768)
-        
+        doc = Document.objects.create(
+            user=self.user,
+            title="Test",
+            file_path="test.pdf",
+            status=DocumentStatus.READY,
+        )
+        chunk = DocumentChunk.objects.create(
+            document=doc, content="Context one.", embedding=[0.0] * 768
+        )
+
         # Mock embeddings
         mock_embedding_inst = mock_embedding.return_value
         mock_embedding_inst.generate_embeddings.return_value = [[0.1] * 768]
@@ -134,3 +146,70 @@ class ChatViewTests(APITestCase):
         )
         mock_retriever.retrieve_context.assert_called_once()
         mock_llm_inst.generate_text.assert_called_once()
+
+
+class QuizTests(APITestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(email="quiz@test.com", password="foo")
+        self.client.force_authenticate(user=self.user)
+
+        self.doc = Document.objects.create(
+            user=self.user,
+            title="Test",
+            file_path="test.pdf",
+            status=DocumentStatus.READY,
+        )
+        self.chunk = DocumentChunk.objects.create(
+            document=self.doc, content="Context one.", embedding=[0.0] * 768
+        )
+
+    @patch("apps.knowledge.views.GeminiLLMService")
+    def test_quiz_generate(self, mock_llm):
+        mock_llm_inst = mock_llm.return_value
+        mock_llm_inst.generate_text.return_value = """[
+            {
+                "text": "What is the capital of France?",
+                "options": ["Paris", "London", "Berlin", "Rome"],
+                "correct_answer": "Paris",
+                "explanation": "Paris is the capital of France."
+            }
+        ]"""
+
+        url = reverse("quiz-generate")
+        response = self.client.post(
+            url,
+            {"document_id": self.doc.id, "difficulty": "easy", "num_questions": 1},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(Quiz.objects.count(), 1)
+        self.assertEqual(Question.objects.count(), 1)
+
+    def test_quiz_submit(self):
+        quiz = Quiz.objects.create(user=self.user, document=self.doc, title="Test Quiz")
+        q1 = Question.objects.create(
+            quiz=quiz,
+            text="Q1",
+            options=["A", "B"],
+            correct_answer="A",
+            explanation="exp 1",
+        )
+        q2 = Question.objects.create(
+            quiz=quiz,
+            text="Q2",
+            options=["C", "D"],
+            correct_answer="C",
+            explanation="exp 2",
+        )
+
+        url = reverse("quiz-submit", args=[quiz.id])
+        data = {
+            "answers": [
+                {"question_id": q1.id, "answer": "A"},
+                {"question_id": q2.id, "answer": "D"},  # Incorrect
+            ]
+        }
+        response = self.client.post(url, data, format="json")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["score"], 1)
+        self.assertEqual(QuizAttempt.objects.count(), 1)
