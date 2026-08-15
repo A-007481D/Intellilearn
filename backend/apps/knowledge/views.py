@@ -7,7 +7,8 @@ from rest_framework.views import APIView
 
 from apps.documents.models import Document
 from infrastructure.ai.gemini_adapter import GeminiEmbeddingService, GeminiLLMService
-from infrastructure.ai.prompt_builder import PromptBuilder, QuizPromptBuilder
+from infrastructure.ai.orchestrator import AgentOrchestrator
+from infrastructure.ai.prompt_builder import QuizPromptBuilder
 from infrastructure.ai.retriever import VectorRetriever
 
 from .models import Conversation, Message, Question, QuestionResponse, Quiz, QuizAttempt
@@ -37,6 +38,33 @@ class ConversationDetailView(generics.RetrieveDestroyAPIView):
 
 class ChatView(APIView):
     permission_classes = [IsAuthenticated]
+
+    def _generate_quiz_inline(self, request, contexts, document):
+        prompt = QuizPromptBuilder.build_quiz_prompt(contexts, "medium", 5)
+        llm_service = GeminiLLMService()
+        try:
+            answer = llm_service.generate_text(prompt)
+            answer = (
+                answer.removeprefix("```json").removeprefix("```").removesuffix("```")
+            )
+            questions_data = json.loads(answer.strip())
+
+            quiz = Quiz.objects.create(
+                user=request.user,
+                document=document,
+                title=f"{document.title} Quiz (Auto)",
+                difficulty="medium",
+            )
+            for q_data in questions_data:
+                Question.objects.create(
+                    quiz=quiz,
+                    text=q_data.get("text", ""),
+                    options=q_data.get("options", []),
+                    correct_answer=q_data.get("correct_answer", ""),
+                    explanation=q_data.get("explanation", ""),
+                )
+        except Exception:  # noqa: S110, BLE001
+            pass
 
     def post(self, request):
         question = request.data.get("question")
@@ -83,16 +111,22 @@ class ChatView(APIView):
             query_embedding, document_ids=doc_ids, top_k=5
         )
 
-        prompt = PromptBuilder.build_rag_prompt(question, contexts, history=history)
+        orchestrator = AgentOrchestrator(contexts)
+        intent = orchestrator.classify_intent(question)
 
-        llm_service = GeminiLLMService()
-        try:
-            answer = llm_service.generate_text(prompt)
-        except Exception:  # noqa: BLE001
-            return Response(
-                {"error": "Failed to generate answer"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
+        if intent == "QUIZ":
+            doc = contexts[0].document if contexts else None
+            if doc:
+                self._generate_quiz_inline(request, contexts, doc)
+            answer = "I have generated a quiz based on your request. You can find it in the Quizzes tab."
+        else:
+            try:
+                answer = orchestrator.answer_question(question, history)
+            except Exception:  # noqa: BLE001
+                return Response(
+                    {"error": "Failed to generate answer"},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                )
 
         # Save messages to history
         Message.objects.create(
