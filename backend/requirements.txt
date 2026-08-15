@@ -10,13 +10,13 @@ click==8.4.2
 click-didyoumean==0.3.1
 click-plugins==1.1.1.2
 click-repl==0.3.0
-crewai==0.35.0
+crewai
 Django==6.0.7
 djangorestframework==3.17.1
 djangorestframework_simplejwt==5.5.1
 iniconfig==2.3.0
 kombu==5.6.2
-langchain-google-genai>=2.0.0
+langchain-google-genai
 minio==7.2.20
 packaging==26.2
 pgvector==0.2.5
