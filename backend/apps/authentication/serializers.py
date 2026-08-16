@@ -21,6 +21,18 @@ class RegisterSerializer(serializers.ModelSerializer):
 
 
 class UserSerializer(serializers.ModelSerializer):
+    document_count = serializers.SerializerMethodField()
+    storage_used = serializers.SerializerMethodField()
+    
     class Meta:
         model = User
-        fields = ("id", "email", "role")
+        fields = ("id", "email", "role", "max_documents", "max_storage_bytes", "document_count", "storage_used")
+        
+    def get_document_count(self, obj):
+        from apps.documents.models import Document
+        return Document.objects.filter(user=obj).count()
+        
+    def get_storage_used(self, obj):
+        from apps.documents.models import Document
+        from django.db.models import Sum
+        return Document.objects.filter(user=obj).aggregate(total=Sum('file_size'))['total'] or 0

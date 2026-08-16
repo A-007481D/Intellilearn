@@ -5,8 +5,11 @@ from .views import (
     ConversationDetailView,
     ConversationListView,
     QuizDetailView,
+    QuizListView,
+    DocumentSummaryView,
     QuizGenerateView,
     QuizSubmitView,
+    AnalyticsView,
 )
 
 urlpatterns = [
@@ -20,4 +23,7 @@ urlpatterns = [
     path("quizzes/generate/", QuizGenerateView.as_view(), name="quiz-generate"),
     path("quizzes/<int:pk>/", QuizDetailView.as_view(), name="quiz-detail"),
     path("quizzes/<int:pk>/submit/", QuizSubmitView.as_view(), name="quiz-submit"),
+    path("analytics/", AnalyticsView.as_view(), name="analytics"),
+    path('quizzes/', QuizListView.as_view(), name='quiz-list'),
+    path('documents/<int:pk>/summary/', DocumentSummaryView.as_view(), name='document-summary'),
 ]
