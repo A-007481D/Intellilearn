@@ -61,6 +61,7 @@ class ChatView(APIView):
                     text=q_data.get("text", ""),
                     options=q_data.get("options", []),
                     correct_answer=q_data.get("correct_answer", ""),
+                    concept=q_data.get("concept", ""),
                     explanation=q_data.get("explanation", ""),
                 )
         except Exception:  # noqa: S110, BLE001
@@ -70,6 +71,18 @@ class ChatView(APIView):
         question = request.data.get("question")
         document_id = request.data.get("document_id")
         conversation_id = request.data.get("conversation_id")
+        level = request.data.get("level", "standard")
+
+        if document_id:
+            try:
+                doc_check = Document.objects.get(id=document_id, user=request.user)
+                if doc_check.status != 'READY':
+                    return Response(
+                        {'error': f'Document is not ready (status: {doc_check.status}). Please wait for processing to complete.'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+            except Document.DoesNotExist:
+                return Response({'error': 'Document not found'}, status=status.HTTP_404_NOT_FOUND)
 
         if not question:
             return Response(
@@ -121,7 +134,7 @@ class ChatView(APIView):
             answer = "I have generated a quiz based on your request. You can find it in the Quizzes tab."
         else:
             try:
-                answer = orchestrator.answer_question(question, history)
+                answer = orchestrator.answer_question(question, history, level=level)
             except Exception:  # noqa: BLE001
                 return Response(
                     {"error": "Failed to generate answer"},
@@ -151,6 +164,16 @@ class QuizGenerateView(APIView):
 
     def post(self, request):
         document_id = request.data.get("document_id")
+        if document_id:
+            try:
+                doc_check = Document.objects.get(id=document_id, user=request.user)
+                if doc_check.status != 'READY':
+                    return Response(
+                        {'error': f'Document is not ready (status: {doc_check.status}). Please wait for processing to complete.'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+            except Document.DoesNotExist:
+                return Response({'error': 'Document not found'}, status=status.HTTP_404_NOT_FOUND)
         difficulty = request.data.get("difficulty", "medium")
         num_questions = int(request.data.get("num_questions", 5))
 
@@ -205,6 +228,7 @@ class QuizGenerateView(APIView):
                 text=q_data.get("text", ""),
                 options=q_data.get("options", []),
                 correct_answer=q_data.get("correct_answer", ""),
+                concept=q_data.get("concept", ""),
                 explanation=q_data.get("explanation", ""),
             )
 
@@ -277,3 +301,122 @@ class QuizSubmitView(APIView):
                 "results": res_data,
             }
         )
+
+
+class AnalyticsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        
+        total_documents = Document.objects.filter(user=user).count()
+        
+        # Count user messages across all their conversations
+        total_questions_asked = Message.objects.filter(
+            conversation__user=user, 
+            role=Message.Role.USER
+        ).count()
+        
+        # Quiz stats
+        attempts = QuizAttempt.objects.filter(user=user).prefetch_related("quiz__questions")
+        total_quizzes_taken = attempts.count()
+        
+        avg_score = 0
+        if total_quizzes_taken > 0:
+            avg_score = sum([a.score / max(a.quiz.questions.count(), 1) * 100 for a in attempts]) / total_quizzes_taken
+            
+        # Concept tracking
+        responses = QuestionResponse.objects.filter(attempt__user=user).select_related("question")
+        concept_stats = {}
+        
+        for r in responses:
+            concept = r.question.concept
+            if not concept:
+                continue
+            if concept not in concept_stats:
+                concept_stats[concept] = {"correct": 0, "total": 0}
+            concept_stats[concept]["total"] += 1
+            if r.is_correct:
+                concept_stats[concept]["correct"] += 1
+                
+        # Calculate success rate and find weakest
+        weakest_concepts = []
+        for concept, stats in concept_stats.items():
+            rate = (stats["correct"] / stats["total"]) * 100
+            weakest_concepts.append({"concept": concept, "success_rate": rate})
+            
+        weakest_concepts.sort(key=lambda x: x["success_rate"])
+        top_weakest = weakest_concepts[:3]
+        
+        # Progression over time (last 10 attempts)
+        recent_attempts = attempts.order_by("-created_at")[:10]
+        progression = []
+        for a in reversed(list(recent_attempts)):
+            total_qs = max(a.quiz.questions.count(), 1)
+            progression.append({
+                "date": a.created_at.strftime("%Y-%m-%d"),
+                "quiz_title": a.quiz.title,
+                "score_percentage": (a.score / total_qs) * 100
+            })
+
+        return Response({
+            "total_documents": total_documents,
+            "total_questions_asked": total_questions_asked,
+            "total_quizzes_taken": total_quizzes_taken,
+            "average_score": round(avg_score, 1),
+            "weakest_concepts": top_weakest,
+            "progression": progression
+        })
+
+class QuizListView(generics.ListAPIView):
+    serializer_class = QuizSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        qs = Quiz.objects.filter(user=self.request.user).order_by('-created_at')
+        document_id = self.request.query_params.get('document_id')
+        if document_id:
+            qs = qs.filter(document_id=document_id)
+        return qs
+
+class DocumentSummaryView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk):
+        try:
+            document = Document.objects.get(pk=pk, user=request.user)
+        except Document.DoesNotExist:
+            return Response({'error': 'Document not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        # Assuming DocumentStatus is imported, or we use string
+        if document.status != 'READY':
+            return Response({'error': 'Document is not ready'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Use first 15 chunks for summary
+        contexts = document.chunks.all()[:15]
+        context_text = '\n\n---\n\n'.join([c.content for c in contexts])
+
+        prompt = f"""You are an expert educator. Based ONLY on the following document content, create:
+1. A concise summary (3-5 sentences)
+2. A structured fiche de synthèse (key concepts, main ideas, important terms)
+
+Return valid JSON in this exact format:
+{{
+  "summary": "...",
+  "fiche": {{
+    "key_concepts": ["concept1", "concept2"],
+    "main_ideas": ["idea1", "idea2"],
+    "important_terms": {{"term": "definition"}}
+  }}
+}}
+
+Document content:
+{context_text}"""
+
+        llm_service = GeminiLLMService()
+        try:
+            result = llm_service.generate_text(prompt)
+            result = result.removeprefix('```json').removeprefix('```').removesuffix('```').strip()
+            return Response({'document_id': pk, 'title': document.title, 'data': __import__('json').loads(result)})
+        except Exception as e:
+            return Response({'error': f'Failed to generate summary: {e}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
