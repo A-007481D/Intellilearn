@@ -76,6 +76,7 @@ class ContextMock:
         self.content = content
         self.id = 1
         self.pk = 1
+        self.page_number = 1
 
 
 class BuilderAndLLMTests(TestCase):
@@ -87,7 +88,7 @@ class BuilderAndLLMTests(TestCase):
         self.assertIn("The mitochondria is the powerhouse of the cell.", prompt)
         self.assertIn("Photosynthesis occurs in chloroplasts.", prompt)
         self.assertIn("What is a cell powerhouse?", prompt)
-        self.assertIn("strictly on the provided context", prompt)
+        self.assertIn("based ONLY on the provided context", prompt)
 
     @patch("infrastructure.ai.gemini_adapter.genai.Client")
     def test_gemini_llm_service(self, mock_client_class):

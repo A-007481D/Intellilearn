@@ -70,7 +70,7 @@ class DocumentTaskTests(APITestCase):
         mock_storage_inst.get_file_stream.return_value = mock_response
 
         # Mock PDF Extractor
-        mock_pdf.extract_text.return_value = "Extracted text content."
+        mock_pdf.extract_text.return_value = ("Extracted text content.", 1)
 
         # Mock Chunker
         mock_chunk_inst = mock_chunk.return_value
