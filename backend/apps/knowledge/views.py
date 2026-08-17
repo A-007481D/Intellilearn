@@ -61,6 +61,7 @@ class ChatView(APIView):
                     text=q_data.get("text", ""),
                     options=q_data.get("options", []),
                     correct_answer=q_data.get("correct_answer", ""),
+                    concept=q_data.get("concept", ""),
                     explanation=q_data.get("explanation", ""),
                 )
         except Exception:  # noqa: S110, BLE001
@@ -205,6 +206,7 @@ class QuizGenerateView(APIView):
                 text=q_data.get("text", ""),
                 options=q_data.get("options", []),
                 correct_answer=q_data.get("correct_answer", ""),
+                concept=q_data.get("concept", ""),
                 explanation=q_data.get("explanation", ""),
             )
 
@@ -277,3 +279,69 @@ class QuizSubmitView(APIView):
                 "results": res_data,
             }
         )
+
+
+class AnalyticsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        
+        total_documents = Document.objects.filter(user=user).count()
+        
+        # Count user messages across all their conversations
+        total_questions_asked = Message.objects.filter(
+            conversation__user=user, 
+            role=Message.Role.USER
+        ).count()
+        
+        # Quiz stats
+        attempts = QuizAttempt.objects.filter(user=user).prefetch_related("quiz__questions")
+        total_quizzes_taken = attempts.count()
+        
+        avg_score = 0
+        if total_quizzes_taken > 0:
+            avg_score = sum([a.score / max(a.quiz.questions.count(), 1) * 100 for a in attempts]) / total_quizzes_taken
+            
+        # Concept tracking
+        responses = QuestionResponse.objects.filter(attempt__user=user).select_related("question")
+        concept_stats = {}
+        
+        for r in responses:
+            concept = r.question.concept
+            if not concept:
+                continue
+            if concept not in concept_stats:
+                concept_stats[concept] = {"correct": 0, "total": 0}
+            concept_stats[concept]["total"] += 1
+            if r.is_correct:
+                concept_stats[concept]["correct"] += 1
+                
+        # Calculate success rate and find weakest
+        weakest_concepts = []
+        for concept, stats in concept_stats.items():
+            rate = (stats["correct"] / stats["total"]) * 100
+            weakest_concepts.append({"concept": concept, "success_rate": rate})
+            
+        weakest_concepts.sort(key=lambda x: x["success_rate"])
+        top_weakest = weakest_concepts[:3]
+        
+        # Progression over time (last 10 attempts)
+        recent_attempts = attempts.order_by("-created_at")[:10]
+        progression = []
+        for a in reversed(list(recent_attempts)):
+            total_qs = max(a.quiz.questions.count(), 1)
+            progression.append({
+                "date": a.created_at.strftime("%Y-%m-%d"),
+                "quiz_title": a.quiz.title,
+                "score_percentage": (a.score / total_qs) * 100
+            })
+
+        return Response({
+            "total_documents": total_documents,
+            "total_questions_asked": total_questions_asked,
+            "total_quizzes_taken": total_quizzes_taken,
+            "average_score": round(avg_score, 1),
+            "weakest_concepts": top_weakest,
+            "progression": progression
+        })
