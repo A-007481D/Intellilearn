@@ -89,7 +89,7 @@ export default function Dashboard() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#0A0A0B] flex items-center justify-center">
+      <div className="  flex items-center justify-center">
         <div className="animate-pulse flex flex-col items-center gap-4">
           <Activity className="text-indigo-500 animate-spin" size={40} />
           <p className="text-indigo-400 font-medium tracking-widest uppercase">Analyzing Brain Waves...</p>
@@ -99,7 +99,7 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0A0A0B] text-slate-200 p-6 md:p-10 font-sans selection:bg-indigo-500/30">
+    <div className="  text-slate-200 p-6 md:p-10 font-sans selection:bg-indigo-500/30">
       
       {/* Dynamic Background Glow */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
