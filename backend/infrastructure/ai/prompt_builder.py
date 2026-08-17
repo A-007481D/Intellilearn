@@ -2,21 +2,25 @@ class PromptBuilder:
     @staticmethod
     def build_rag_prompt(question, contexts, history=None):
         """
-        Builds a prompt that combines the user's question with the retrieved contexts.
+        Builds a RAG prompt combining the question with retrieved contexts.
+        Produces numbered citations in the answer.
         """
-        context_text = "\n\n---\n\n".join([c.content for c in contexts])
+        context_sections = []
+        for i, c in enumerate(contexts, 1):
+            context_sections.append(f"[{i}] (Page {c.page_number or '?'}): {c.content}")
+        context_text = "\n\n".join(context_sections)
 
-        prompt = f"""You are a helpful AI assistant for an EdTech platform.
-Please answer the user's question based strictly on the provided context below.
-If the context does not contain the answer, say "I don't have enough information to answer that based on the documents."
-Do not use outside knowledge.
+        prompt = f"""You are a helpful AI tutor for an EdTech platform.
+Answer the user's question based ONLY on the provided context below.
+If the context does not contain the answer, say "I don't have enough information based on the provided documents."
+Do NOT use outside knowledge. Include numbered citations like [1], [2] when referencing context passages.
 
 Context:
 {context_text}
 
-        """
+"""
         if history:
-            prompt += "\nChat History:\n"
+            prompt += "\nPrevious conversation:\n"
             for msg in history:
                 prompt += f"{msg.role.upper()}: {msg.content}\n"
 
@@ -26,26 +30,70 @@ Context:
 
 class QuizPromptBuilder:
     @staticmethod
-    def build_quiz_prompt(contexts, difficulty="medium", num_questions=5):
+    def build_quiz_prompt(contexts, difficulty="medium", num_questions=5, question_type="mcq"):
         """
-        Builds a prompt instructing the LLM to generate a quiz in a strict JSON format.
+        Builds a quiz generation prompt.
+        question_type: mcq | true_false | open | mixed
         """
         context_text = "\n\n---\n\n".join([c.content for c in contexts])
+        chunk_ids = [c.id for c in contexts]
 
-        prompt = f"""You are an expert educational assessment creator.
-Based ONLY on the provided context, generate a {difficulty} difficulty multiple-choice quiz with exactly {num_questions} questions.
-
-Your response MUST be a raw, valid JSON array of objects. Do not wrap the JSON in markdown code blocks. Do not add any conversational text.
-Format requirements:
-[
+        if question_type == "mcq":
+            format_desc = """[
   {{
+    "question_type": "mcq",
     "text": "The question text",
     "options": ["Option A", "Option B", "Option C", "Option D"],
     "correct_answer": "The exact string of the correct option",
-    "concept": "The core concept being tested (1 to 3 words)",
-    "explanation": "Why this answer is correct based on the text"
+    "concept": "Core concept (1-3 words)",
+    "explanation": "Why this answer is correct",
+    "chunk_ids": [chunk_id_numbers_from_context]
   }}
-]
+]"""
+        elif question_type == "true_false":
+            format_desc = """[
+  {{
+    "question_type": "true_false",
+    "text": "Statement to evaluate as true or false",
+    "options": ["True", "False"],
+    "correct_answer": "True or False",
+    "concept": "Core concept (1-3 words)",
+    "explanation": "Why this answer is correct",
+    "chunk_ids": []
+  }}
+]"""
+        elif question_type == "open":
+            format_desc = """[
+  {{
+    "question_type": "open",
+    "text": "The open-ended question",
+    "options": [],
+    "correct_answer": "Expected answer or key points",
+    "concept": "Core concept (1-3 words)",
+    "explanation": "Grading guidance",
+    "chunk_ids": []
+  }}
+]"""
+        else:  # mixed
+            format_desc = """[
+  {{
+    "question_type": "mcq|true_false|open",
+    "text": "Question text",
+    "options": ["..."] or [],
+    "correct_answer": "...",
+    "concept": "Core concept",
+    "explanation": "...",
+    "chunk_ids": []
+  }}
+]"""
+
+        prompt = f"""You are an expert educational assessment creator.
+Based ONLY on the provided context, generate exactly {num_questions} {difficulty} difficulty questions of type "{question_type}".
+
+Return a raw, valid JSON array (NO markdown, NO extra text):
+{format_desc}
+
+Available chunk IDs for citation: {chunk_ids}
 
 Context:
 {context_text}

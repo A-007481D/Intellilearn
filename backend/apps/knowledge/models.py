@@ -75,12 +75,30 @@ class Quiz(models.Model):
 
 
 class Question(models.Model):
+    class QuestionType(models.TextChoices):
+        MCQ = "mcq", "Multiple Choice"
+        TRUE_FALSE = "true_false", "True / False"
+        OPEN = "open", "Open Question"
+
     quiz = models.ForeignKey(Quiz, on_delete=models.CASCADE, related_name="questions")
+    question_type = models.CharField(
+        max_length=20,
+        choices=QuestionType.choices,
+        default=QuestionType.MCQ,
+    )
     text = models.TextField()
-    options = models.JSONField(help_text="List of possible answers")
-    correct_answer = models.CharField(max_length=255)
+    options = models.JSONField(
+        help_text="List of possible answers (empty for open questions)",
+        default=list,
+        blank=True,
+    )
+    correct_answer = models.CharField(max_length=512)
     concept = models.CharField(max_length=255, blank=True, help_text="Core concept being tested")
     explanation = models.TextField(blank=True)
+    # Link to source document chunks so results can cite origins
+    source_chunks = models.ManyToManyField(
+        DocumentChunk, blank=True, related_name="sourced_questions"
+    )
 
     def __str__(self):
         return self.text[:50]
@@ -103,8 +121,9 @@ class QuestionResponse(models.Model):
         QuizAttempt, on_delete=models.CASCADE, related_name="responses"
     )
     question = models.ForeignKey(Question, on_delete=models.CASCADE)
-    user_answer = models.CharField(max_length=255)
+    user_answer = models.TextField()
     is_correct = models.BooleanField(default=False)
+    feedback = models.TextField(blank=True, help_text="LLM feedback for open answers")
 
     def __str__(self):
         return f"{self.attempt.id} - {self.question.id}: {self.is_correct}"

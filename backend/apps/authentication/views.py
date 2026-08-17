@@ -1,5 +1,5 @@
 from django.contrib.auth import get_user_model
-from django.conf import settings
+from django.db.models import Q
 from rest_framework import generics, status
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
@@ -31,9 +31,15 @@ class CurrentUserView(generics.RetrieveAPIView):
 
 
 class AdminUserListView(generics.ListAPIView):
-    queryset = User.objects.all().order_by('id')
     serializer_class = UserSerializer
     permission_classes = (IsAdminUser,)
+
+    def get_queryset(self):
+        qs = User.objects.all().order_by('id')
+        search = self.request.query_params.get('search')
+        if search:
+            qs = qs.filter(Q(email__icontains=search) | Q(first_name__icontains=search))
+        return qs
 
 
 class AdminUserDetailView(generics.RetrieveAPIView):
@@ -54,16 +60,25 @@ class AdminUserQuotaUpdateView(APIView):
         # Capture old values before change
         old_max_docs = user.max_documents
         old_max_storage = user.max_storage_bytes
+        old_role = user.role
 
         max_docs = request.data.get('max_documents')
         max_storage = request.data.get('max_storage_bytes')
+        new_role = request.data.get('role')
 
+        update_fields = []
         if max_docs is not None:
             user.max_documents = int(max_docs)
+            update_fields.append('max_documents')
         if max_storage is not None:
             user.max_storage_bytes = int(max_storage)
+            update_fields.append('max_storage_bytes')
+        if new_role in ('LEARNER', 'ADMIN'):
+            user.role = new_role
+            update_fields.append('role')
 
-        user.save(update_fields=['max_documents', 'max_storage_bytes'])
+        if update_fields:
+            user.save(update_fields=update_fields)
 
         # Log the change
         QuotaChangeLog.objects.create(
