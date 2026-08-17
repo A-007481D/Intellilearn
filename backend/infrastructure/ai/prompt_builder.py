@@ -42,6 +42,7 @@ Format requirements:
     "text": "The question text",
     "options": ["Option A", "Option B", "Option C", "Option D"],
     "correct_answer": "The exact string of the correct option",
+    "concept": "The core concept being tested (1 to 3 words)",
     "explanation": "Why this answer is correct based on the text"
   }}
 ]
