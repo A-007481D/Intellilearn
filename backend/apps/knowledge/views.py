@@ -236,7 +236,6 @@ class ChatStreamView(APIView):
         question = request.query_params.get("question")
         document_id = request.query_params.get("document_id")
         conversation_id = request.query_params.get("conversation_id")
-        level = request.query_params.get("level", "standard")
 
         if not question:
             return Response(
@@ -290,7 +289,6 @@ class ChatStreamView(APIView):
             query_embedding, document_ids=doc_ids, top_k=5
         )
 
-        user = request.user
 
         def event_stream():
             """Generator that yields SSE-formatted chunks."""
@@ -317,7 +315,7 @@ class ChatStreamView(APIView):
                         full_answer.append(chunk.text)
                         yield f"data: {json.dumps({'type': 'token', 'text': chunk.text})}\n\n"
 
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
 
             # Save to DB
@@ -508,7 +506,7 @@ class QuizSubmitView(APIView):
                 if is_correct:
                     score += 1
 
-                qr = QuestionResponse.objects.create(
+                QuestionResponse.objects.create(
                     attempt=attempt,
                     question=question,
                     user_answer=user_ans,
@@ -619,7 +617,7 @@ class AnalyticsView(APIView):
 
     def get(self, request):
         import csv
-        from datetime import date, timedelta
+        from datetime import timedelta
         from io import StringIO
 
         user = request.user
@@ -694,7 +692,8 @@ class AnalyticsView(APIView):
             )
 
         # Streak (assiduité) — consecutive days with at least 1 quiz attempt
-        today = date.today()
+        from django.utils import timezone
+        today = timezone.now().date()
         streak = 0
         check_date = today
         attempt_dates = set(

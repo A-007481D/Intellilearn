@@ -1,17 +1,17 @@
 from django.urls import path
 
 from .views import (
-    ChatView,
+    AnalyticsView,
     ChatStreamView,
+    ChatView,
     ConversationDetailView,
     ConversationListView,
     DocumentSummaryView,
+    QuizAttemptDetailView,
     QuizDetailView,
     QuizGenerateView,
     QuizListView,
     QuizSubmitView,
-    QuizAttemptDetailView,
-    AnalyticsView,
 )
 
 urlpatterns = [

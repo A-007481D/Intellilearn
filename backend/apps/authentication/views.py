@@ -5,8 +5,8 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from .models import NotificationLog, QuotaChangeLog
 from .serializers import RegisterSerializer, UserSerializer
-from .models import QuotaChangeLog, NotificationLog
 
 User = get_user_model()
 
@@ -60,7 +60,6 @@ class AdminUserQuotaUpdateView(APIView):
         # Capture old values before change
         old_max_docs = user.max_documents
         old_max_storage = user.max_storage_bytes
-        old_role = user.role
 
         max_docs = request.data.get('max_documents')
         max_storage = request.data.get('max_storage_bytes')

@@ -53,5 +53,5 @@ class StorageService:
     def delete_file(self, object_name):
         try:
             self.client.remove_object(self.bucket_name, object_name)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             print(f"MinIO delete error: {e}")

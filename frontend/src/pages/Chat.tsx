@@ -3,7 +3,6 @@ import { apiGet, apiDelete, apiFetch } from '../lib/api';
 import { Send, MessageSquare, Trash2, Loader2, Bot, User, BookOpen, Sparkles, Navigation } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 
-const BASE_URL = 'http://localhost:8000/api/v1';
 
 interface Conversation {
   id: string;
@@ -73,7 +72,6 @@ export default function Chat() {
     setMessages(prev => [...prev, { id: 'temp', role: 'USER', content: userMsg }]);
     setLoading(true);
 
-    const token = localStorage.getItem('access_token');
     const params = new URLSearchParams({
       question: userMsg,
       level: level.toLowerCase()

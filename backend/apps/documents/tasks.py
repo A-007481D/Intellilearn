@@ -42,7 +42,7 @@ def process_document_task(document_id):
 
         # 2. Extract Text (with page count validation)
         try:
-            text, page_count = PDFExtractionService.extract_text(file_stream)
+            text, _page_count = PDFExtractionService.extract_text(file_stream)
         except ValueError as e:
             doc.status = DocumentStatus.FAILED
             doc.error_message = str(e)

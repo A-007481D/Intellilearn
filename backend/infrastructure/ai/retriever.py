@@ -1,4 +1,5 @@
 import numpy as np
+
 from apps.knowledge.models import DocumentChunk
 
 
