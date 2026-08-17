@@ -20,6 +20,9 @@ class Document(models.Model):
     status = models.CharField(
         max_length=20, choices=DocumentStatus.choices, default=DocumentStatus.UPLOADED
     )
+    error_message = models.TextField(
+        blank=True, help_text="Set when status=FAILED, describes what went wrong"
+    )
     uploaded_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
