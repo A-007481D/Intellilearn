@@ -40,12 +40,14 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "rest_framework",
     "rest_framework_simplejwt",
+    "corsheaders",
     "apps.authentication",
     "apps.documents",
     "apps.knowledge",
 ]
 
 MIDDLEWARE = [
+    "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -147,3 +149,23 @@ CELERY_TASK_SERIALIZER = "json"
 
 # AI / Embeddings Settings
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
+
+
+# CORS
+CORS_ALLOW_ALL_ORIGINS = True  # dev only
+
+# Email (console backend for dev)
+EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+DEFAULT_FROM_EMAIL = 'noreply@intellilearn.com'
+
+# REST Framework — add pagination
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ),
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticated',
+    ],
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+    'PAGE_SIZE': 20
+}
