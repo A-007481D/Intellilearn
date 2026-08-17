@@ -3,7 +3,9 @@ from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
+from django.db.models import Sum
 from infrastructure.storage.minio_adapter import StorageService
+import hashlib
 
 from .models import Document, DocumentStatus
 from .serializers import DocumentSerializer
@@ -28,6 +30,27 @@ class DocumentListCreateView(generics.ListCreateAPIView):
 
         title = request.data.get("title", file_obj.name)
 
+        # Determine file size
+        file_obj.seek(0, 2)
+        size = file_obj.tell()
+        file_obj.seek(0)
+        
+        # Check storage quota
+        user = request.user
+        current_storage = Document.objects.filter(user=user).aggregate(total=Sum('file_size'))['total'] or 0
+        if current_storage + size > user.max_storage_bytes:
+            return Response({"error": "Storage quota exceeded"}, status=status.HTTP_403_FORBIDDEN)
+            
+        # Check document count quota
+        if Document.objects.filter(user=user).count() >= user.max_documents:
+            return Response({"error": "Document count quota exceeded"}, status=status.HTTP_403_FORBIDDEN)
+            
+        # Check unicity
+        file_hash = hashlib.sha256(file_obj.read()).hexdigest()
+        file_obj.seek(0)
+        if Document.objects.filter(user=user, file_hash=file_hash).exists():
+            return Response({"error": "Document already exists"}, status=status.HTTP_409_CONFLICT)
+
         # Upload to MinIO
         storage = StorageService()
         try:
@@ -42,6 +65,8 @@ class DocumentListCreateView(generics.ListCreateAPIView):
             user=request.user,
             title=title,
             file_path=object_name,
+            file_size=size,
+            file_hash=file_hash,
             status=DocumentStatus.UPLOADED,
         )
 
@@ -62,3 +87,9 @@ class DocumentDetailView(generics.RetrieveDestroyAPIView):
         if self.request.user.role == "ADMIN":
             return Document.objects.all()
         return Document.objects.filter(user=self.request.user)
+
+    def perform_destroy(self, instance):
+        storage = StorageService()
+        if instance.file_path:
+            storage.delete_file(instance.file_path)
+        instance.delete()
