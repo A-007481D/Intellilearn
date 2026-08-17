@@ -7,7 +7,7 @@ export default function Register() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [role, setRole] = useState('STUDENT');
+  const [role, setRole] = useState('LEARNER');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -36,84 +36,81 @@ export default function Register() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0A0A0B] flex items-center justify-center p-4 relative overflow-hidden">
-      <div className="absolute top-0 right-1/2 translate-x-1/2 w-[800px] h-[400px] bg-purple-900/30 rounded-full blur-[120px] pointer-events-none" />
-      <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-indigo-900/20 rounded-full blur-[100px] pointer-events-none" />
-
-      <div className="w-full max-w-md relative z-10">
+    <div className="min-h-screen bg-[#000000] flex items-center justify-center p-4">
+      <div className="w-full max-w-md">
         <div className="flex flex-col items-center mb-10">
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center mb-4 shadow-2xl shadow-purple-500/40">
-            <Brain size={32} className="text-white" />
+          <div className="w-12 h-12 rounded bg-[#111] border border-[#222] flex items-center justify-center mb-4">
+            <Brain size={24} className="text-white" />
           </div>
-          <h1 className="text-3xl font-extrabold text-white tracking-tight">Join IntelliLearn</h1>
-          <p className="text-slate-400 mt-1">Create your account</p>
+          <h1 className="text-2xl font-semibold text-white tracking-tight">Join IntelliLearn</h1>
+          <p className="text-[#A1A1AA] mt-2 text-sm">Create your account</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="bg-white/5 border border-white/10 backdrop-blur-xl rounded-3xl p-8 space-y-5">
+        <form onSubmit={handleSubmit} className="bg-[#0A0A0A] border border-[#222] rounded-xl p-8 space-y-6">
           {error && (
-            <div className="flex items-center gap-3 bg-rose-500/10 border border-rose-500/30 text-rose-300 rounded-xl px-4 py-3 text-sm">
+            <div className="flex items-center gap-3 bg-red-950/30 border border-red-900/50 text-red-400 rounded-lg px-4 py-3 text-sm">
               <AlertCircle size={16} className="shrink-0" />
               {error}
             </div>
           )}
 
           <div className="space-y-2">
-            <label className="text-slate-300 text-sm font-medium">Email</label>
+            <label className="text-[#EDEDED] text-sm font-medium">Email</label>
             <div className="relative">
-              <Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+              <Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#52525B]" />
               <input
                 type="email"
                 value={email}
                 onChange={e => setEmail(e.target.value)}
                 required
                 placeholder="you@example.com"
-                className="w-full bg-white/5 border border-white/10 rounded-xl pl-10 pr-4 py-3 text-white placeholder-slate-600 focus:outline-none focus:border-purple-500/50 focus:bg-white/10 transition-all"
+                className="w-full bg-[#000] border border-[#333] rounded-lg pl-10 pr-4 py-2.5 text-white placeholder-[#52525B] focus:outline-none focus:border-[#666] transition-colors text-sm"
               />
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <label className="text-slate-300 text-sm font-medium">Password</label>
+              <label className="text-[#EDEDED] text-sm font-medium">Password</label>
               <div className="relative">
-                <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+                <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#52525B]" />
                 <input
                   type="password"
                   value={password}
                   onChange={e => setPassword(e.target.value)}
                   required
                   placeholder="••••••••"
-                  className="w-full bg-white/5 border border-white/10 rounded-xl pl-10 pr-4 py-3 text-white placeholder-slate-600 focus:outline-none focus:border-purple-500/50 focus:bg-white/10 transition-all"
+                  className="w-full bg-[#000] border border-[#333] rounded-lg pl-10 pr-4 py-2.5 text-white placeholder-[#52525B] focus:outline-none focus:border-[#666] transition-colors text-sm"
                 />
               </div>
             </div>
             <div className="space-y-2">
-              <label className="text-slate-300 text-sm font-medium">Confirm</label>
+              <label className="text-[#EDEDED] text-sm font-medium">Confirm</label>
               <div className="relative">
-                <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+                <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#52525B]" />
                 <input
                   type="password"
                   value={confirmPassword}
                   onChange={e => setConfirmPassword(e.target.value)}
                   required
                   placeholder="••••••••"
-                  className="w-full bg-white/5 border border-white/10 rounded-xl pl-10 pr-4 py-3 text-white placeholder-slate-600 focus:outline-none focus:border-purple-500/50 focus:bg-white/10 transition-all"
+                  className="w-full bg-[#000] border border-[#333] rounded-lg pl-10 pr-4 py-2.5 text-white placeholder-[#52525B] focus:outline-none focus:border-[#666] transition-colors text-sm"
                 />
               </div>
             </div>
           </div>
 
           <div className="space-y-2">
-            <label className="text-slate-300 text-sm font-medium">Role</label>
+            <label className="text-[#EDEDED] text-sm font-medium">Role</label>
             <div className="relative">
-              <User size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+              <User size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#52525B]" />
               <select
                 value={role}
                 onChange={e => setRole(e.target.value)}
-                className="w-full bg-[#111113] border border-white/10 rounded-xl pl-10 pr-4 py-3 text-white focus:outline-none focus:border-purple-500/50 transition-all appearance-none"
+                className="w-full bg-[#000] border border-[#333] rounded-lg pl-10 pr-4 py-2.5 text-white focus:outline-none focus:border-[#666] transition-colors appearance-none text-sm"
               >
-                <option value="STUDENT">Student</option>
-                <option value="TEACHER">Teacher</option>
+                <option value="LEARNER">Learner</option>
+                <option value="ADMIN">Admin</option>
               </select>
             </div>
           </div>
@@ -121,15 +118,15 @@ export default function Register() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-semibold hover:from-purple-500 hover:to-indigo-500 transition-all hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg shadow-purple-500/30"
+            className="w-full py-2.5 rounded-lg bg-white text-black font-medium hover:bg-gray-200 transition-colors disabled:opacity-50 flex items-center justify-center gap-2 text-sm"
           >
-            {loading ? <Loader2 size={18} className="animate-spin" /> : null}
+            {loading ? <Loader2 size={16} className="animate-spin" /> : null}
             Create Account
           </button>
 
-          <p className="text-center text-slate-500 text-sm">
+          <p className="text-center text-[#A1A1AA] text-sm mt-4">
             Already have an account?{' '}
-            <Link to="/login" className="text-purple-400 hover:text-purple-300 font-medium">Sign in</Link>
+            <Link to="/login" className="text-white hover:underline font-medium">Sign in</Link>
           </p>
         </form>
       </div>

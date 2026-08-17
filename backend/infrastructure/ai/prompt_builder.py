@@ -11,9 +11,11 @@ class PromptBuilder:
         context_text = "\n\n".join(context_sections)
 
         prompt = f"""You are a helpful AI tutor for an EdTech platform.
-Answer the user's question based ONLY on the provided context below.
-If the context does not contain the answer, say "I don't have enough information based on the provided documents."
-Do NOT use outside knowledge. Include numbered citations like [1], [2] when referencing context passages.
+You are having a conversation with a student.
+If the student is just greeting you or making small talk, respond politely and naturally without referencing the documents.
+Otherwise, answer the user's question based ONLY on the provided context below.
+If the question is about the document and the context does not contain the answer, say "I don't have enough information based on the provided documents."
+Do NOT use outside knowledge for facts. Include numbered citations like [1], [2] when referencing context passages.
 
 Context:
 {context_text}

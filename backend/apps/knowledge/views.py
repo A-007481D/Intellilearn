@@ -555,6 +555,55 @@ class QuizSubmitView(APIView):
             }
         )
 
+class QuizAttemptDetailView(APIView):
+    """
+    GET /api/v1/knowledge/quizzes/attempts/<pk>/
+    Fetches the full results of a previous quiz attempt.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk):
+        try:
+            attempt = QuizAttempt.objects.select_related('quiz').get(pk=pk, user=request.user)
+        except QuizAttempt.DoesNotExist:
+            return Response({"error": "Attempt not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        res_data = []
+        for qr in attempt.responses.select_related('question').all():
+            question = qr.question
+            source = None
+            source_chunks = list(question.source_chunks.all()[:1])
+            if source_chunks:
+                c = source_chunks[0]
+                source = {
+                    "chunk_id": c.id,
+                    "page_number": c.page_number,
+                    "document_id": c.document_id,
+                }
+
+            res_data.append({
+                "question_id": question.id,
+                "question_type": question.question_type,
+                "question_text": question.text,
+                "user_answer": qr.user_answer,
+                "is_correct": qr.is_correct,
+                "correct_answer": question.correct_answer,
+                "explanation": question.explanation,
+                "feedback": qr.feedback,
+                "source": source,
+            })
+
+        total = attempt.quiz.questions.count()
+        return Response({
+            "quiz_id": attempt.quiz.id,
+            "attempt_id": attempt.id,
+            "score": attempt.score,
+            "total": total,
+            "score_percentage": round((attempt.score / max(total, 1)) * 100, 1),
+            "results": res_data,
+        })
+
+
 
 class AnalyticsView(APIView):
     """
@@ -637,6 +686,7 @@ class AnalyticsView(APIView):
             total_qs = max(a.quiz.questions.count(), 1)
             progression.append(
                 {
+                    "id": a.id,
                     "date": a.created_at.strftime("%Y-%m-%d"),
                     "quiz_title": a.quiz.title,
                     "score_percentage": round((a.score / total_qs) * 100, 1),

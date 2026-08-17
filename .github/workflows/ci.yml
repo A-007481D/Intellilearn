@@ -60,3 +60,6 @@ jobs:
         
     - name: Lint
       run: npm run lint
+
+    - name: Build Application
+      run: npm run build

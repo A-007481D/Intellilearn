@@ -1,5 +1,4 @@
-from pgvector.django import L2Distance
-
+import numpy as np
 from apps.knowledge.models import DocumentChunk
 
 
@@ -15,7 +14,24 @@ class VectorRetriever:
         if document_ids:
             qs = qs.filter(document_id__in=document_ids)
 
-        # Order by closest L2 distance (euclidean distance)
-        chunks = qs.order_by(L2Distance("embedding", query_embedding))[:top_k]
+        chunks = list(qs)
+        if not chunks:
+            return []
 
-        return list(chunks)
+        # Convert query embedding to numpy array
+        q_vec = np.array(query_embedding)
+        
+        # Calculate L2 distance in memory since SQLite doesn't support pgvector operators
+        scored_chunks = []
+        for chunk in chunks:
+            if chunk.embedding is None:
+                continue
+            c_vec = np.array(chunk.embedding)
+            # L2 distance squared
+            dist = np.sum((q_vec - c_vec) ** 2)
+            scored_chunks.append((dist, chunk))
+        
+        # Sort by smallest distance (closest)
+        scored_chunks.sort(key=lambda x: x[0])
+        
+        return [c[1] for c in scored_chunks[:top_k]]

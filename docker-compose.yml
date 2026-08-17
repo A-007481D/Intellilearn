@@ -37,6 +37,42 @@ services:
       - miniodata:/data
     restart: unless-stopped
 
+  backend:
+    build:
+      context: ./backend
+    container_name: edtech_backend
+    environment:
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+      - redis
+      - minio
+    restart: unless-stopped
+
+  celery:
+    build:
+      context: ./backend
+    container_name: edtech_celery
+    command: celery -A config worker -l info
+    environment:
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+    depends_on:
+      - backend
+      - redis
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: edtech_frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
 volumes:
   pgdata:
   redisdata:

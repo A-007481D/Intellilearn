@@ -62,11 +62,11 @@ class DocumentListCreateView(generics.ListCreateAPIView):
             return Response({'error': 'This document has already been uploaded'}, status=status.HTTP_409_CONFLICT)
 
         # Upload to MinIO
-        storage = StorageService()
         try:
+            storage = StorageService()
             object_name = storage.upload_file(file_obj, file_obj.name)
         except Exception as e:  # noqa: BLE001
-            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({'error': f"Storage error: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         doc = Document.objects.create(
             user=user,
@@ -106,9 +106,13 @@ class DocumentDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     def perform_destroy(self, instance):
         # Physical delete from MinIO
-        storage = StorageService()
-        if instance.file_path:
-            storage.delete_file(instance.file_path)
+        try:
+            storage = StorageService()
+            if instance.file_path:
+                storage.delete_file(instance.file_path)
+        except Exception as e:
+            print(f"Failed to delete from storage: {e}")
+            
         # Chunks will cascade delete (and vectors with them)
         instance.delete()
 
@@ -145,6 +149,9 @@ class DocumentPresignedUrlView(APIView):
         except Document.DoesNotExist:
             return Response({'error': 'Document not found'}, status=status.HTTP_404_NOT_FOUND)
 
-        storage = StorageService()
-        url = storage.get_file_url(doc.file_path)
-        return Response({'url': url, 'document_id': doc.id})
+        try:
+            storage = StorageService()
+            url = storage.get_file_url(doc.file_path)
+            return Response({'url': url, 'document_id': doc.id})
+        except Exception as e:
+            return Response({'error': f"Storage error: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

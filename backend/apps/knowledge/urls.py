@@ -10,6 +10,7 @@ from .views import (
     QuizGenerateView,
     QuizListView,
     QuizSubmitView,
+    QuizAttemptDetailView,
     AnalyticsView,
 )
 
@@ -30,6 +31,7 @@ urlpatterns = [
     path("quizzes/generate/", QuizGenerateView.as_view(), name="quiz-generate"),
     path("quizzes/<int:pk>/", QuizDetailView.as_view(), name="quiz-detail"),
     path("quizzes/<int:pk>/submit/", QuizSubmitView.as_view(), name="quiz-submit"),
+    path("quizzes/attempts/<int:pk>/", QuizAttemptDetailView.as_view(), name="quiz-attempt-detail"),
     # Analytics
     path("analytics/", AnalyticsView.as_view(), name="analytics"),
     # Summary/Fiche
