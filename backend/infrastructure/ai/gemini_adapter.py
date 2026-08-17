@@ -9,7 +9,7 @@ class GeminiEmbeddingService:
     def generate_embeddings(self, texts):
         """Generate embeddings for a list of texts."""
         result = self.client.models.embed_content(
-            model="text-embedding-004", contents=texts
+            model="gemini-embedding-2", contents=texts
         )
         return [res.values for res in result.embeddings]
 

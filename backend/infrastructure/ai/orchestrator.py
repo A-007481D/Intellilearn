@@ -156,7 +156,7 @@ class AgentOrchestrator:
         result = self._run_crew([generator], [task])
         try:
             return json.loads(result.strip().removeprefix('```json').removeprefix('```').removesuffix('```').strip())
-        except Exception:
+        except Exception:  # noqa: BLE001
             return None
 
     # ------- Agent 5: Evaluator Agent -------
@@ -178,7 +178,7 @@ class AgentOrchestrator:
         result = self._run_crew([evaluator], [task])
         try:
             return json.loads(result.strip().removeprefix('```json').removeprefix('```').removesuffix('```').strip())
-        except Exception:
+        except Exception:  # noqa: BLE001
             return {'is_correct': False, 'score': 0, 'feedback': result}
 
     # ------- Agent 6: Notification Agent -------

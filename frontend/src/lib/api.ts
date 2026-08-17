@@ -42,7 +42,11 @@ export async function apiFetch(path: string, options: RequestInit = {}) {
 export async function apiGet<T>(path: string): Promise<T> {
   const res = await apiFetch(path);
   if (!res.ok) throw new Error(`GET ${path} failed: ${res.status}`);
-  return res.json();
+  const data = await res.json();
+  if (data && typeof data === 'object' && 'count' in data && 'results' in data && Array.isArray(data.results)) {
+    return data.results as T;
+  }
+  return data;
 }
 
 export async function apiPost<T>(path: string, body?: unknown): Promise<T> {

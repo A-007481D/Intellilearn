@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { apiGet, apiPost, apiDelete } from '../lib/api';
-import { Send, MessageSquare, Trash2, Loader2, Bot, User, BookOpen } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { apiGet, apiDelete, apiFetch } from '../lib/api';
+import { Send, MessageSquare, Trash2, Loader2, Bot, User, BookOpen, Sparkles, Navigation } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
+
 
 interface Conversation {
   id: string;
@@ -9,11 +10,25 @@ interface Conversation {
   updated_at: string;
 }
 
+interface Citation {
+  id: string;
+  content_preview: string;
+  document_id?: string;
+  page_number?: number;
+}
+
+interface FollowUpAction {
+  label: string;
+  action: string;
+  prompt: string;
+}
+
 interface Message {
   id: string;
   role: 'USER' | 'ASSISTANT';
   content: string;
-  citations?: { id: string; content: string }[];
+  citations?: Citation[];
+  follow_up_actions?: FollowUpAction[];
 }
 
 export default function Chat() {
@@ -32,12 +47,12 @@ export default function Chat() {
 
   useEffect(() => {
     apiGet<Conversation[]>('/knowledge/conversations/').then(setConversations).catch(console.error);
-    apiGet<any[]>('/knowledge/documents/').then(res => setDocs(res.filter(d => d.status === 'READY'))).catch(console.error);
+    apiGet<any[]>('/documents/').then(res => setDocs(res.filter(d => d.status === 'READY'))).catch(console.error);
   }, []);
 
   useEffect(() => {
     if (activeConv) {
-      apiGet<{messages: Message[]}>(`/knowledge/conversations/${activeConv}/`)
+      apiGet<{messages: Message[] }>(`/knowledge/conversations/${activeConv}/`)
         .then(res => setMessages(res.messages))
         .catch(console.error);
     } else {
@@ -49,40 +64,89 @@ export default function Chat() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, loading]);
 
-  const handleSend = async () => {
-    if (!input.trim()) return;
-    const userMsg = input.trim();
-    setInput('');
+  const handleSend = async (customPrompt?: string) => {
+    const userMsg = customPrompt || input.trim();
+    if (!userMsg) return;
+    
+    if (!customPrompt) setInput('');
     setMessages(prev => [...prev, { id: 'temp', role: 'USER', content: userMsg }]);
     setLoading(true);
 
+    const params = new URLSearchParams({
+      question: userMsg,
+      level: level.toLowerCase()
+    });
+    if (selectedDoc) params.append('document_id', selectedDoc);
+    if (activeConv) params.append('conversation_id', activeConv);
+
     try {
-      const res = await apiPost<any>('/knowledge/chat/', {
-        question: userMsg,
-        document_id: selectedDoc || undefined,
-        conversation_id: activeConv || undefined,
-        level: level.toLowerCase()
-      });
-      
-      if (!activeConv) {
-        setActiveConv(res.conversation_id);
-        apiGet<Conversation[]>('/knowledge/conversations/').then(setConversations);
+      const res = await apiFetch(`/knowledge/chat/stream/?${params.toString()}`);
+
+      if (!res.ok) {
+        throw new Error("Failed to connect to stream");
       }
+
+      const reader = res.body?.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let assistantMsgId = (Date.now() + 1).toString();
       
       setMessages(prev => [...prev.filter(m => m.id !== 'temp'), {
-        id: res.id || Date.now().toString(),
+        id: Date.now().toString(),
         role: 'USER',
         content: userMsg
       }, {
-        id: (Date.now() + 1).toString(),
+        id: assistantMsgId,
         role: 'ASSISTANT',
-        content: res.answer,
-        citations: res.citations
+        content: '',
+        citations: []
       }]);
+
+      setLoading(false); // Token streaming begins
+
+      while (reader) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+        
+        for (const line of lines) {
+          if (line.trim().startsWith('data:')) {
+            const dataStr = line.replace('data:', '').trim();
+            if (!dataStr) continue;
+            try {
+              const data = JSON.parse(dataStr);
+              if (data.type === 'meta') {
+                setMessages(prev => prev.map(m => m.id === assistantMsgId ? { ...m, citations: data.citations } : m));
+                if (!activeConv && data.conversation_id) {
+                  setActiveConv(data.conversation_id.toString());
+                  apiGet<Conversation[]>('/knowledge/conversations/').then(setConversations);
+                }
+              } else if (data.type === 'token') {
+                setMessages(prev => prev.map(m => m.id === assistantMsgId ? { ...m, content: m.content + data.text } : m));
+              } else if (data.type === 'done') {
+                // Add follow-up actions artificially at the end since they aren't generated by the LLM stream directly 
+                // in this simple backend implementation, but we know they were requested.
+                const followUpActions = [
+                  { label: "Deepen", action: "deepen", prompt: `Go deeper on: ${userMsg}` },
+                  { label: "Simplify", action: "simplify", prompt: `Explain more simply: ${userMsg}` },
+                  { label: "Quiz me", action: "quiz", prompt: `Generate a quiz about: ${userMsg}` }
+                ];
+                setMessages(prev => prev.map(m => m.id === assistantMsgId ? { ...m, follow_up_actions: followUpActions } : m));
+              } else if (data.type === 'error') {
+                setMessages(prev => prev.map(m => m.id === assistantMsgId ? { ...m, content: m.content + `\n\n[Error: ${data.message}]` } : m));
+              }
+            } catch (e) {
+              console.error("SSE Parse Error", e);
+            }
+          }
+        }
+      }
     } catch (e) {
       console.error(e);
       setMessages(prev => prev.filter(m => m.id !== 'temp'));
-    } finally {
       setLoading(false);
     }
   };
@@ -98,33 +162,33 @@ export default function Chat() {
   };
 
   return (
-    <div className="h-[calc(100vh-8rem)] flex gap-6">
+    <div className="h-[calc(100vh-8rem)] flex gap-4">
       {/* Sidebar */}
-      <div className="w-64 flex-shrink-0 bg-white/5 border border-white/10 rounded-2xl flex flex-col overflow-hidden">
-        <div className="p-4 border-b border-white/10">
+      <div className="w-64 flex-shrink-0 bg-[#0A0A0A] border border-[#222] rounded-xl flex flex-col overflow-hidden">
+        <div className="p-4 border-b border-[#222]">
           <button
-            onClick={() => setActiveConv(null)}
-            className="w-full py-2 bg-indigo-500/20 text-indigo-300 rounded-lg text-sm font-medium hover:bg-indigo-500/30 transition-colors"
+            onClick={() => { setActiveConv(null); setMessages([]); }}
+            className="w-full py-2 bg-white text-black rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors"
           >
             + New Chat
           </button>
         </div>
-        <div className="flex-1 overflow-y-auto p-3 space-y-1">
+        <div className="flex-1 overflow-y-auto p-2 space-y-1">
           {conversations.map(c => (
             <div
               key={c.id}
               onClick={() => setActiveConv(c.id)}
-              className={`flex items-center justify-between p-3 rounded-xl cursor-pointer group transition-all ${
-                activeConv === c.id ? 'bg-white/10 text-white' : 'text-slate-400 hover:bg-white/5 hover:text-slate-200'
+              className={`flex items-center justify-between p-2 rounded-lg cursor-pointer group transition-colors text-sm ${
+                activeConv === c.id.toString() ? 'bg-[#111] text-white' : 'text-[#A1A1AA] hover:bg-[#111] hover:text-[#EDEDED]'
               }`}
             >
-              <div className="flex items-center gap-3 overflow-hidden">
-                <MessageSquare size={16} className="flex-shrink-0" />
-                <span className="text-sm truncate">{c.title}</span>
+              <div className="flex items-center gap-2 overflow-hidden">
+                <MessageSquare size={14} className="flex-shrink-0" />
+                <span className="truncate">{c.title}</span>
               </div>
               <button
                 onClick={(e) => { e.stopPropagation(); handleDeleteConv(c.id); }}
-                className="opacity-0 group-hover:opacity-100 text-slate-500 hover:text-rose-400 transition-opacity"
+                className="opacity-0 group-hover:opacity-100 text-[#52525B] hover:text-red-400 transition-opacity p-1"
               >
                 <Trash2 size={14} />
               </button>
@@ -133,23 +197,24 @@ export default function Chat() {
         </div>
       </div>
 
-      {/* Main Chat */}
-      <div className="flex-1 bg-white/5 border border-white/10 rounded-2xl flex flex-col overflow-hidden">
-        {/* Header */}
-        <div className="p-4 border-b border-white/10 flex items-center justify-between bg-white/[0.02]">
-          <div className="flex items-center gap-4">
+      {/* Main Chat Area */}
+      <div className="flex-1 bg-[#000] border border-[#222] rounded-xl flex flex-col overflow-hidden">
+        {/* Header Controls */}
+        <div className="p-3 border-b border-[#222] flex items-center justify-between bg-[#0A0A0A]">
+          <div className="flex items-center gap-3">
             <select
               value={selectedDoc}
               onChange={e => setSelectedDoc(e.target.value)}
-              className="bg-[#111113] border border-white/10 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:border-indigo-500"
+              className="bg-transparent border-none text-sm text-[#EDEDED] focus:outline-none focus:ring-0"
             >
               <option value="">All Documents</option>
               {docs.map(d => <option key={d.id} value={d.id}>{d.title}</option>)}
             </select>
+            <div className="w-px h-4 bg-[#333]"></div>
             <select
               value={level}
               onChange={e => setLevel(e.target.value)}
-              className="bg-[#111113] border border-white/10 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:border-indigo-500"
+              className="bg-transparent border-none text-sm text-[#EDEDED] focus:outline-none focus:ring-0"
             >
               <option>Simple</option>
               <option>Standard</option>
@@ -159,40 +224,59 @@ export default function Chat() {
         </div>
 
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+        <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-8">
           {messages.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center text-center opacity-50">
-              <Bot size={48} className="mb-4 text-indigo-400" />
-              <h2 className="text-xl font-semibold text-white mb-2">How can I help you learn?</h2>
-              <p className="text-slate-400 max-w-sm">Ask a question about your documents, and I'll find the answer with citations.</p>
+            <div className="h-full flex flex-col items-center justify-center text-center">
+              <Bot size={40} className="mb-4 text-[#A1A1AA]" />
+              <h2 className="text-xl font-medium text-white mb-2">How can I help you learn?</h2>
+              <p className="text-[#A1A1AA] text-sm max-w-sm">Ask a question about your documents, and I'll find the answer with citations.</p>
             </div>
           ) : (
             messages.map((m, i) => (
               <div key={i} className={`flex gap-4 ${m.role === 'USER' ? 'flex-row-reverse' : ''}`}>
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
-                  m.role === 'USER' ? 'bg-indigo-600' : 'bg-slate-700'
+                <div className={`w-8 h-8 rounded flex items-center justify-center flex-shrink-0 ${
+                  m.role === 'USER' ? 'bg-[#222]' : 'bg-transparent border border-[#333]'
                 }`}>
                   {m.role === 'USER' ? <User size={16} className="text-white" /> : <Bot size={16} className="text-white" />}
                 </div>
-                <div className={`max-w-[75%] rounded-2xl p-4 ${
+                <div className={`max-w-[85%] ${
                   m.role === 'USER' 
-                    ? 'bg-indigo-600/20 text-indigo-100 border border-indigo-500/30 rounded-tr-sm' 
-                    : 'bg-white/10 text-slate-200 border border-white/5 rounded-tl-sm'
+                    ? 'bg-[#111] text-white rounded-2xl px-5 py-3' 
+                    : 'text-[#EDEDED] pt-1'
                 }`}>
-                  <p className="whitespace-pre-wrap leading-relaxed">{m.content}</p>
+                  <p className="whitespace-pre-wrap leading-relaxed text-sm md:text-base">{m.content}</p>
                   
                   {m.citations && m.citations.length > 0 && (
-                    <div className="mt-4 pt-4 border-t border-white/10 space-y-2">
-                      <p className="text-xs font-medium text-slate-400 flex items-center gap-1">
+                    <div className="mt-4 pt-3 border-t border-[#222] space-y-2">
+                      <p className="text-xs font-medium text-[#A1A1AA] flex items-center gap-1">
                         <BookOpen size={12} /> Sources
                       </p>
                       <div className="flex flex-wrap gap-2">
                         {m.citations.map((cit, idx) => (
-                          <div key={idx} className="bg-black/20 rounded px-2 py-1 text-xs text-slate-300 border border-white/5" title={cit.content}>
-                            [{idx + 1}]
+                          <div 
+                            key={idx} 
+                            className="bg-[#111] rounded px-2 py-1 text-xs text-[#A1A1AA] border border-[#222] cursor-pointer hover:bg-[#222] hover:text-white transition-colors" 
+                            title={cit.content_preview}
+                          >
+                            [{idx + 1}] {cit.page_number ? `Page ${cit.page_number}` : 'Unknown Page'}
                           </div>
                         ))}
                       </div>
+                    </div>
+                  )}
+
+                  {m.follow_up_actions && m.follow_up_actions.length > 0 && (
+                    <div className="mt-6 flex flex-wrap gap-2">
+                      {m.follow_up_actions.map((action, idx) => (
+                         <button
+                          key={idx}
+                          onClick={() => handleSend(action.prompt)}
+                          className="px-3 py-1.5 bg-transparent border border-[#333] rounded-full text-xs font-medium text-[#A1A1AA] flex items-center gap-1.5 hover:border-[#555] hover:text-white transition-colors"
+                        >
+                          {action.action === 'quiz' ? <Sparkles size={12} /> : <Navigation size={12} />}
+                          {action.label}
+                        </button>
+                      ))}
                     </div>
                   )}
                 </div>
@@ -201,10 +285,10 @@ export default function Chat() {
           )}
           {loading && (
             <div className="flex gap-4">
-              <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center">
+              <div className="w-8 h-8 rounded border border-[#333] flex items-center justify-center">
                 <Bot size={16} className="text-white" />
               </div>
-              <div className="bg-white/10 border border-white/5 rounded-2xl rounded-tl-sm p-4 flex items-center gap-2 text-slate-400">
+              <div className="pt-2 flex items-center gap-2 text-[#A1A1AA] text-sm">
                 <Loader2 size={16} className="animate-spin" /> Thinking...
               </div>
             </div>
@@ -212,26 +296,29 @@ export default function Chat() {
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Input */}
-        <div className="p-4 border-t border-white/10 bg-white/[0.02]">
-          <div className="relative">
+        {/* Input Area */}
+        <div className="p-4 bg-[#0A0A0A] border-t border-[#222]">
+          <div className="max-w-3xl mx-auto relative flex items-center bg-[#111] border border-[#333] rounded-xl overflow-hidden focus-within:border-[#555] transition-colors">
             <textarea
               value={input}
               onChange={e => setInput(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-              placeholder="Ask anything..."
-              className="w-full bg-[#111113] border border-white/10 rounded-xl pl-4 pr-12 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500/50 resize-none"
+              placeholder="Message IntelliLearn..."
+              className="w-full bg-transparent pl-4 pr-12 py-3.5 text-white placeholder-[#52525B] focus:outline-none resize-none text-sm"
               rows={1}
-              style={{ minHeight: '50px', maxHeight: '150px' }}
+              style={{ minHeight: '52px', maxHeight: '150px' }}
             />
             <button
-              onClick={handleSend}
+              onClick={() => handleSend()}
               disabled={!input.trim() || loading}
-              className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-500 disabled:opacity-50 transition-colors"
+              className="absolute right-2 p-1.5 bg-white text-black rounded-lg hover:bg-gray-200 disabled:opacity-50 disabled:bg-[#333] disabled:text-[#666] transition-colors"
             >
               <Send size={16} />
             </button>
           </div>
+          <p className="text-center text-[#52525B] text-xs mt-3">
+            AI can make mistakes. Verify important information from the documents.
+          </p>
         </div>
       </div>
     </div>

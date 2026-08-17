@@ -135,7 +135,7 @@ REST_FRAMEWORK = {
 # MinIO Storage Settings
 MINIO_ENDPOINT = os.environ.get("MINIO_ENDPOINT", "localhost:9000")
 MINIO_ACCESS_KEY = os.environ.get("MINIO_ACCESS_KEY", "minioadmin")
-MINIO_SECRET_KEY = os.environ.get("MINIO_SECRET_KEY", "minioadmin")
+MINIO_SECRET_KEY = os.environ.get("MINIO_SECRET_KEY", "minioadminpassword")
 MINIO_USE_SSL = os.environ.get("MINIO_USE_SSL", "False").lower() == "true"
 MINIO_BUCKET_NAME = os.environ.get("MINIO_BUCKET_NAME", "intellilearn")
 

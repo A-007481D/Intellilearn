@@ -2,13 +2,13 @@ from django.urls import path
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
 from .views import (
-    CurrentUserView,
-    RegisterView,
-    AdminUserListView,
-    AdminUserDetailView,
-    AdminUserQuotaUpdateView,
     AdminNotifyView,
+    AdminUserDetailView,
+    AdminUserListView,
+    AdminUserQuotaUpdateView,
+    CurrentUserView,
     NotificationLogListView,
+    RegisterView,
 )
 
 urlpatterns = [

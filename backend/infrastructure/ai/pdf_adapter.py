@@ -31,8 +31,10 @@ class PDFExtractionService:
                     if page_text:
                         # Prefix with page marker so chunks can track page_number
                         text_parts.append(f"[PAGE:{i}]\n{page_text}")
-                except Exception:  # noqa: BLE001
-                    # Skip unreadable page, don't fail entirely
+                except Exception as e:  # noqa: BLE001
+                    import logging
+                    logger = logging.getLogger(__name__)
+                    logger.warning(f"Skipped unreadable page {i}: {e}")
                     continue
 
         return "\n".join(text_parts), page_count

@@ -1,6 +1,6 @@
 from celery import shared_task
-from django.core.mail import send_mail
 from django.conf import settings
+from django.core.mail import send_mail
 
 
 @shared_task
@@ -15,7 +15,7 @@ def send_bulk_notification_task(subject, message, recipient_email, log_id):
             fail_silently=False,
         )
         NotificationLog.objects.filter(id=log_id).update(status='SENT')
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         NotificationLog.objects.filter(id=log_id).update(
             status='FAILED', error_message=str(e)
         )

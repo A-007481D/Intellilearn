@@ -236,7 +236,6 @@ class ChatStreamView(APIView):
         question = request.query_params.get("question")
         document_id = request.query_params.get("document_id")
         conversation_id = request.query_params.get("conversation_id")
-        level = request.query_params.get("level", "standard")
 
         if not question:
             return Response(
@@ -290,7 +289,6 @@ class ChatStreamView(APIView):
             query_embedding, document_ids=doc_ids, top_k=5
         )
 
-        user = request.user
 
         def event_stream():
             """Generator that yields SSE-formatted chunks."""
@@ -317,7 +315,7 @@ class ChatStreamView(APIView):
                         full_answer.append(chunk.text)
                         yield f"data: {json.dumps({'type': 'token', 'text': chunk.text})}\n\n"
 
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
 
             # Save to DB
@@ -508,7 +506,7 @@ class QuizSubmitView(APIView):
                 if is_correct:
                     score += 1
 
-                qr = QuestionResponse.objects.create(
+                QuestionResponse.objects.create(
                     attempt=attempt,
                     question=question,
                     user_answer=user_ans,
@@ -555,6 +553,55 @@ class QuizSubmitView(APIView):
             }
         )
 
+class QuizAttemptDetailView(APIView):
+    """
+    GET /api/v1/knowledge/quizzes/attempts/<pk>/
+    Fetches the full results of a previous quiz attempt.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk):
+        try:
+            attempt = QuizAttempt.objects.select_related('quiz').get(pk=pk, user=request.user)
+        except QuizAttempt.DoesNotExist:
+            return Response({"error": "Attempt not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        res_data = []
+        for qr in attempt.responses.select_related('question').all():
+            question = qr.question
+            source = None
+            source_chunks = list(question.source_chunks.all()[:1])
+            if source_chunks:
+                c = source_chunks[0]
+                source = {
+                    "chunk_id": c.id,
+                    "page_number": c.page_number,
+                    "document_id": c.document_id,
+                }
+
+            res_data.append({
+                "question_id": question.id,
+                "question_type": question.question_type,
+                "question_text": question.text,
+                "user_answer": qr.user_answer,
+                "is_correct": qr.is_correct,
+                "correct_answer": question.correct_answer,
+                "explanation": question.explanation,
+                "feedback": qr.feedback,
+                "source": source,
+            })
+
+        total = attempt.quiz.questions.count()
+        return Response({
+            "quiz_id": attempt.quiz.id,
+            "attempt_id": attempt.id,
+            "score": attempt.score,
+            "total": total,
+            "score_percentage": round((attempt.score / max(total, 1)) * 100, 1),
+            "results": res_data,
+        })
+
+
 
 class AnalyticsView(APIView):
     """
@@ -570,7 +617,7 @@ class AnalyticsView(APIView):
 
     def get(self, request):
         import csv
-        from datetime import date, timedelta
+        from datetime import timedelta
         from io import StringIO
 
         user = request.user
@@ -637,6 +684,7 @@ class AnalyticsView(APIView):
             total_qs = max(a.quiz.questions.count(), 1)
             progression.append(
                 {
+                    "id": a.id,
                     "date": a.created_at.strftime("%Y-%m-%d"),
                     "quiz_title": a.quiz.title,
                     "score_percentage": round((a.score / total_qs) * 100, 1),
@@ -644,7 +692,8 @@ class AnalyticsView(APIView):
             )
 
         # Streak (assiduité) — consecutive days with at least 1 quiz attempt
-        today = date.today()
+        from django.utils import timezone
+        today = timezone.now().date()
         streak = 0
         check_date = today
         attempt_dates = set(
