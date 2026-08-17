@@ -49,3 +49,9 @@ class StorageService:
 
     def get_file_stream(self, object_name):
         return self.client.get_object(self.bucket_name, object_name)
+
+    def delete_file(self, object_name):
+        try:
+            self.client.remove_object(self.bucket_name, object_name)
+        except Exception as e:
+            print(f"MinIO delete error: {e}")
