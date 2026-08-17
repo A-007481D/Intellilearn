@@ -50,19 +50,21 @@ class QuotaChangeLog(models.Model):
 
 class NotificationLog(models.Model):
     class Status(models.TextChoices):
-        PENDING = 'PENDING', 'Pending'
-        SENT = 'SENT', 'Sent'
-        FAILED = 'FAILED', 'Failed'
+        PENDING = "PENDING", "Pending"
+        SENT = "SENT", "Sent"
+        FAILED = "FAILED", "Failed"
 
     sender = models.ForeignKey(
-        User, on_delete=models.SET_NULL, null=True, related_name='sent_notifications'
+        User, on_delete=models.SET_NULL, null=True, related_name="sent_notifications"
     )
     recipient = models.ForeignKey(
-        User, on_delete=models.CASCADE, related_name='received_notifications'
+        User, on_delete=models.CASCADE, related_name="received_notifications"
     )
     subject = models.CharField(max_length=255)
     message = models.TextField()
-    status = models.CharField(max_length=10, choices=Status.choices, default=Status.PENDING)
+    status = models.CharField(
+        max_length=10, choices=Status.choices, default=Status.PENDING
+    )
     error_message = models.TextField(blank=True)
     sent_at = models.DateTimeField(auto_now_add=True)
 

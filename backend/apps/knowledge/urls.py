@@ -31,9 +31,17 @@ urlpatterns = [
     path("quizzes/generate/", QuizGenerateView.as_view(), name="quiz-generate"),
     path("quizzes/<int:pk>/", QuizDetailView.as_view(), name="quiz-detail"),
     path("quizzes/<int:pk>/submit/", QuizSubmitView.as_view(), name="quiz-submit"),
-    path("quizzes/attempts/<int:pk>/", QuizAttemptDetailView.as_view(), name="quiz-attempt-detail"),
+    path(
+        "quizzes/attempts/<int:pk>/",
+        QuizAttemptDetailView.as_view(),
+        name="quiz-attempt-detail",
+    ),
     # Analytics
     path("analytics/", AnalyticsView.as_view(), name="analytics"),
     # Summary/Fiche
-    path("documents/<int:pk>/summary/", DocumentSummaryView.as_view(), name="document-summary"),
+    path(
+        "documents/<int:pk>/summary/",
+        DocumentSummaryView.as_view(),
+        name="document-summary",
+    ),
 ]

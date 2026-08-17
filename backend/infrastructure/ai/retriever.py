@@ -21,7 +21,7 @@ class VectorRetriever:
 
         # Convert query embedding to numpy array
         q_vec = np.array(query_embedding)
-        
+
         # Calculate L2 distance in memory since SQLite doesn't support pgvector operators
         scored_chunks = []
         for chunk in chunks:
@@ -31,8 +31,8 @@ class VectorRetriever:
             # L2 distance squared
             dist = np.sum((q_vec - c_vec) ** 2)
             scored_chunks.append((dist, chunk))
-        
+
         # Sort by smallest distance (closest)
         scored_chunks.sort(key=lambda x: x[0])
-        
+
         return [c[1] for c in scored_chunks[:top_k]]

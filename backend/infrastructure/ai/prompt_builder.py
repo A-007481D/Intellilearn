@@ -32,7 +32,9 @@ Context:
 
 class QuizPromptBuilder:
     @staticmethod
-    def build_quiz_prompt(contexts, difficulty="medium", num_questions=5, question_type="mcq"):
+    def build_quiz_prompt(
+        contexts, difficulty="medium", num_questions=5, question_type="mcq"
+    ):
         """
         Builds a quiz generation prompt.
         question_type: mcq | true_false | open | mixed

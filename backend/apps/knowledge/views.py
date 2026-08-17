@@ -66,7 +66,9 @@ class ChatView(APIView):
         llm_service = GeminiLLMService()
         try:
             answer = llm_service.generate_text(prompt)
-            answer = answer.removeprefix("```json").removeprefix("```").removesuffix("```")
+            answer = (
+                answer.removeprefix("```json").removeprefix("```").removesuffix("```")
+            )
             questions_data = json.loads(answer.strip())
 
             quiz = Quiz.objects.create(
@@ -88,9 +90,8 @@ class ChatView(APIView):
                 )
                 if chunk_ids:
                     from apps.knowledge.models import DocumentChunk
-                    q.source_chunks.set(
-                        DocumentChunk.objects.filter(id__in=chunk_ids)
-                    )
+
+                    q.source_chunks.set(DocumentChunk.objects.filter(id__in=chunk_ids))
             return quiz
         except Exception:  # noqa: BLE001
             return None
@@ -189,9 +190,21 @@ class ChatView(APIView):
 
         # Build follow-up actions
         follow_up_actions = [
-            {"label": "Deepen", "action": "deepen", "prompt": f"Go deeper on: {question}"},
-            {"label": "Simplify", "action": "simplify", "prompt": f"Explain more simply: {question}"},
-            {"label": "Quiz me", "action": "quiz", "prompt": f"Generate a quiz about: {question}"},
+            {
+                "label": "Deepen",
+                "action": "deepen",
+                "prompt": f"Go deeper on: {question}",
+            },
+            {
+                "label": "Simplify",
+                "action": "simplify",
+                "prompt": f"Explain more simply: {question}",
+            },
+            {
+                "label": "Quiz me",
+                "action": "quiz",
+                "prompt": f"Generate a quiz about: {question}",
+            },
         ]
 
         # Persist messages
@@ -248,7 +261,9 @@ class ChatStreamView(APIView):
                 doc_check = Document.objects.get(id=document_id, user=request.user)
                 if doc_check.status != DocumentStatus.READY:
                     return Response(
-                        {"error": f"Document is not ready (status: {doc_check.status})."},
+                        {
+                            "error": f"Document is not ready (status: {doc_check.status})."
+                        },
                         status=status.HTTP_400_BAD_REQUEST,
                     )
             except Document.DoesNotExist:
@@ -264,7 +279,8 @@ class ChatStreamView(APIView):
                 )
             except Conversation.DoesNotExist:
                 return Response(
-                    {"error": "Conversation not found"}, status=status.HTTP_404_NOT_FOUND
+                    {"error": "Conversation not found"},
+                    status=status.HTTP_404_NOT_FOUND,
                 )
         else:
             conversation = Conversation.objects.create(
@@ -288,7 +304,6 @@ class ChatStreamView(APIView):
         contexts = VectorRetriever.retrieve_context(
             query_embedding, document_ids=doc_ids, top_k=5
         )
-
 
         def event_stream():
             """Generator that yields SSE-formatted chunks."""
@@ -352,7 +367,9 @@ class QuizGenerateView(APIView):
         document_id = request.data.get("document_id")
         difficulty = request.data.get("difficulty", "medium")
         num_questions = int(request.data.get("num_questions", 5))
-        question_type = request.data.get("question_type", "mcq")  # mcq|true_false|open|mixed
+        question_type = request.data.get(
+            "question_type", "mcq"
+        )  # mcq|true_false|open|mixed
 
         if not document_id:
             return Response(
@@ -386,7 +403,9 @@ class QuizGenerateView(APIView):
         llm_service = GeminiLLMService()
         try:
             answer = llm_service.generate_text(prompt)
-            answer = answer.removeprefix("```json").removeprefix("```").removesuffix("```")
+            answer = (
+                answer.removeprefix("```json").removeprefix("```").removesuffix("```")
+            )
             questions_data = json.loads(answer.strip())
         except Exception:  # noqa: BLE001
             return Response(
@@ -419,6 +438,7 @@ class QuizGenerateView(APIView):
             chunk_ids = q_data.get("chunk_ids", [])
             if chunk_ids:
                 from apps.knowledge.models import DocumentChunk
+
                 q.source_chunks.set(
                     DocumentChunk.objects.filter(id__in=chunk_ids, document=document)
                 )
@@ -463,11 +483,16 @@ class QuizSubmitView(APIView):
             f"Question: {question_text}\n"
             f"Expected answer: {correct_answer}\n"
             f"Student answer: {user_answer}\n\n"
-            f"Return JSON only: {{\"is_correct\": true/false, \"score\": 0-100, \"feedback\": \"...\"}}"
+            f'Return JSON only: {{"is_correct": true/false, "score": 0-100, "feedback": "..."}}'
         )
         try:
             result = llm.generate_text(prompt)
-            result = result.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+            result = (
+                result.removeprefix("```json")
+                .removeprefix("```")
+                .removesuffix("```")
+                .strip()
+            )
             data = json.loads(result)
             return data.get("is_correct", False), data.get("feedback", "")
         except Exception:  # noqa: BLE001
@@ -500,7 +525,10 @@ class QuizSubmitView(APIView):
                         question.text, question.correct_answer, user_ans
                     )
                 else:
-                    is_correct = question.correct_answer.strip().lower() == user_ans.strip().lower()
+                    is_correct = (
+                        question.correct_answer.strip().lower()
+                        == user_ans.strip().lower()
+                    )
                     feedback = question.explanation
 
                 if is_correct:
@@ -553,21 +581,27 @@ class QuizSubmitView(APIView):
             }
         )
 
+
 class QuizAttemptDetailView(APIView):
     """
     GET /api/v1/knowledge/quizzes/attempts/<pk>/
     Fetches the full results of a previous quiz attempt.
     """
+
     permission_classes = [IsAuthenticated]
 
     def get(self, request, pk):
         try:
-            attempt = QuizAttempt.objects.select_related('quiz').get(pk=pk, user=request.user)
+            attempt = QuizAttempt.objects.select_related("quiz").get(
+                pk=pk, user=request.user
+            )
         except QuizAttempt.DoesNotExist:
-            return Response({"error": "Attempt not found"}, status=status.HTTP_404_NOT_FOUND)
+            return Response(
+                {"error": "Attempt not found"}, status=status.HTTP_404_NOT_FOUND
+            )
 
         res_data = []
-        for qr in attempt.responses.select_related('question').all():
+        for qr in attempt.responses.select_related("question").all():
             question = qr.question
             source = None
             source_chunks = list(question.source_chunks.all()[:1])
@@ -579,28 +613,31 @@ class QuizAttemptDetailView(APIView):
                     "document_id": c.document_id,
                 }
 
-            res_data.append({
-                "question_id": question.id,
-                "question_type": question.question_type,
-                "question_text": question.text,
-                "user_answer": qr.user_answer,
-                "is_correct": qr.is_correct,
-                "correct_answer": question.correct_answer,
-                "explanation": question.explanation,
-                "feedback": qr.feedback,
-                "source": source,
-            })
+            res_data.append(
+                {
+                    "question_id": question.id,
+                    "question_type": question.question_type,
+                    "question_text": question.text,
+                    "user_answer": qr.user_answer,
+                    "is_correct": qr.is_correct,
+                    "correct_answer": question.correct_answer,
+                    "explanation": question.explanation,
+                    "feedback": qr.feedback,
+                    "source": source,
+                }
+            )
 
         total = attempt.quiz.questions.count()
-        return Response({
-            "quiz_id": attempt.quiz.id,
-            "attempt_id": attempt.id,
-            "score": attempt.score,
-            "total": total,
-            "score_percentage": round((attempt.score / max(total, 1)) * 100, 1),
-            "results": res_data,
-        })
-
+        return Response(
+            {
+                "quiz_id": attempt.quiz.id,
+                "attempt_id": attempt.id,
+                "score": attempt.score,
+                "total": total,
+                "score_percentage": round((attempt.score / max(total, 1)) * 100, 1),
+                "results": res_data,
+            }
+        )
 
 
 class AnalyticsView(APIView):
@@ -628,9 +665,7 @@ class AnalyticsView(APIView):
 
         total_documents = Document.objects.filter(user=user).count()
 
-        msg_qs = Message.objects.filter(
-            conversation__user=user, role=Message.Role.USER
-        )
+        msg_qs = Message.objects.filter(conversation__user=user, role=Message.Role.USER)
         total_questions_asked = msg_qs.count()
 
         attempts_qs = QuizAttempt.objects.filter(user=user).prefetch_related(
@@ -654,9 +689,9 @@ class AnalyticsView(APIView):
             )
 
         # Concept tracking
-        responses = QuestionResponse.objects.filter(
-            attempt__user=user
-        ).select_related("question")
+        responses = QuestionResponse.objects.filter(attempt__user=user).select_related(
+            "question"
+        )
         if document_id:
             responses = responses.filter(attempt__quiz__document_id=document_id)
 
@@ -674,7 +709,9 @@ class AnalyticsView(APIView):
         weakest_concepts = []
         for concept, stats in concept_stats.items():
             rate = (stats["correct"] / stats["total"]) * 100
-            weakest_concepts.append({"concept": concept, "success_rate": round(rate, 1)})
+            weakest_concepts.append(
+                {"concept": concept, "success_rate": round(rate, 1)}
+            )
         weakest_concepts.sort(key=lambda x: x["success_rate"])
         top_weakest = weakest_concepts[:3]
 
@@ -693,6 +730,7 @@ class AnalyticsView(APIView):
 
         # Streak (assiduité) — consecutive days with at least 1 quiz attempt
         from django.utils import timezone
+
         today = timezone.now().date()
         streak = 0
         check_date = today
@@ -731,6 +769,7 @@ class AnalyticsView(APIView):
             for p in progression:
                 writer.writerow([p["quiz_title"], p["date"], p["score_percentage"]])
             from django.http import HttpResponse
+
             response = HttpResponse(output.getvalue(), content_type="text/csv")
             response["Content-Disposition"] = 'attachment; filename="analytics.csv"'
             return response
@@ -779,7 +818,12 @@ Document content:
         llm_service = GeminiLLMService()
         try:
             result = llm_service.generate_text(prompt)
-            result = result.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+            result = (
+                result.removeprefix("```json")
+                .removeprefix("```")
+                .removesuffix("```")
+                .strip()
+            )
             return Response(
                 {
                     "document_id": pk,

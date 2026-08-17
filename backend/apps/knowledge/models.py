@@ -64,7 +64,11 @@ class Quiz(models.Model):
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="quizzes"
     )
     document = models.ForeignKey(
-        Document, on_delete=models.SET_NULL, null=True, blank=True, related_name="quizzes"
+        Document,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="quizzes",
     )
     title = models.CharField(max_length=255)
     difficulty = models.CharField(max_length=50, default="medium")
@@ -93,7 +97,9 @@ class Question(models.Model):
         blank=True,
     )
     correct_answer = models.CharField(max_length=512)
-    concept = models.CharField(max_length=255, blank=True, help_text="Core concept being tested")
+    concept = models.CharField(
+        max_length=255, blank=True, help_text="Core concept being tested"
+    )
     explanation = models.TextField(blank=True)
     # Link to source document chunks so results can cite origins
     source_chunks = models.ManyToManyField(

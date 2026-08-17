@@ -33,6 +33,7 @@ class PDFExtractionService:
                         text_parts.append(f"[PAGE:{i}]\n{page_text}")
                 except Exception as e:  # noqa: BLE001
                     import logging
+
                     logger = logging.getLogger(__name__)
                     logger.warning(f"Skipped unreadable page {i}: {e}")
                     continue
