@@ -4,12 +4,12 @@ from rest_framework import generics, status
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework.permissions import AllowAny, IsAuthenticated
 
 from .serializers import RegisterSerializer, UserSerializer
-from .models import QuotaChangeLog
+from .models import QuotaChangeLog, NotificationLog
 
 User = get_user_model()
+
 
 class IsAdminUser(IsAuthenticated):
     def has_permission(self, request, view):
@@ -29,39 +29,55 @@ class CurrentUserView(generics.RetrieveAPIView):
     def get_object(self):
         return self.request.user
 
+
 class AdminUserListView(generics.ListAPIView):
+    queryset = User.objects.all().order_by('id')
+    serializer_class = UserSerializer
+    permission_classes = (IsAdminUser,)
+
+
+class AdminUserDetailView(generics.RetrieveAPIView):
     queryset = User.objects.all()
     serializer_class = UserSerializer
     permission_classes = (IsAdminUser,)
 
+
 class AdminUserQuotaUpdateView(APIView):
     permission_classes = (IsAdminUser,)
 
-    def post(self, request, pk):
+    def patch(self, request, pk):
         try:
             user = User.objects.get(pk=pk)
         except User.DoesNotExist:
-            return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
-            
+            return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        # Capture old values before change
+        old_max_docs = user.max_documents
+        old_max_storage = user.max_storage_bytes
+
         max_docs = request.data.get('max_documents')
         max_storage = request.data.get('max_storage_bytes')
-        
+
         if max_docs is not None:
-            user.max_documents = max_docs
+            user.max_documents = int(max_docs)
         if max_storage is not None:
-            user.max_storage_bytes = max_storage
-            
-        user.save()
-        
+            user.max_storage_bytes = int(max_storage)
+
+        user.save(update_fields=['max_documents', 'max_storage_bytes'])
+
         # Log the change
         QuotaChangeLog.objects.create(
-            user=user,
-            changed_by=request.user,
+            admin_user=request.user,
+            target_user=user,
+            old_max_documents=old_max_docs,
             new_max_documents=user.max_documents,
+            old_max_storage_bytes=old_max_storage,
             new_max_storage_bytes=user.max_storage_bytes,
-            reason=request.data.get('reason', '')
+            reason=request.data.get('reason', ''),
         )
-        return Response({"status": "Quotas updated"})
+
+        return Response(UserSerializer(user).data)
+
 
 class AdminNotifyView(APIView):
     permission_classes = (IsAdminUser,)
@@ -69,20 +85,64 @@ class AdminNotifyView(APIView):
     def post(self, request):
         subject = request.data.get('subject')
         message = request.data.get('message')
-        user_ids = request.data.get('user_ids') # list of ids or 'all'
-        
+        user_ids = request.data.get('user_ids')  # list of ids or string 'all'
+
         if not subject or not message:
-            return Response({"error": "Subject and message required"}, status=status.HTTP_400_BAD_REQUEST)
-            
+            return Response(
+                {'error': 'subject and message are required'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         if user_ids == 'all':
             users = User.objects.all()
-        else:
+        elif isinstance(user_ids, list):
             users = User.objects.filter(id__in=user_ids)
-            
-        recipient_list = [u.email for u in users if u.email]
-        
-        if recipient_list:
-            from .tasks import send_email_notification_task
-            send_email_notification_task.delay(subject, message, recipient_list)
-            
-        return Response({"status": f"Notifications sent to {len(recipient_list)} users."})
+        else:
+            return Response(
+                {'error': 'user_ids must be a list of IDs or the string "all"'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        logs = []
+        recipient_emails = []
+        for u in users:
+            log = NotificationLog.objects.create(
+                sender=request.user,
+                recipient=u,
+                subject=subject,
+                message=message,
+                status=NotificationLog.Status.PENDING,
+            )
+            logs.append(log)
+            if u.email:
+                recipient_emails.append((u.email, log.id))
+
+        # Dispatch emails via celery
+        from .tasks import send_bulk_notification_task
+        for email, log_id in recipient_emails:
+            send_bulk_notification_task.delay(subject, message, email, log_id)
+
+        return Response({'status': f'Queued {len(logs)} notifications.'})
+
+
+class NotificationLogListView(generics.ListAPIView):
+    permission_classes = (IsAdminUser,)
+
+    def get_queryset(self):
+        from .models import NotificationLog
+        return NotificationLog.objects.all().order_by('-sent_at')[:100]
+
+    def list(self, request, *args, **kwargs):
+        qs = self.get_queryset()
+        data = [
+            {
+                'id': n.id,
+                'recipient': n.recipient.email,
+                'subject': n.subject,
+                'status': n.status,
+                'sent_at': n.sent_at,
+                'error_message': n.error_message,
+            }
+            for n in qs
+        ]
+        return Response(data)
