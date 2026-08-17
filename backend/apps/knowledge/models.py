@@ -64,7 +64,7 @@ class Quiz(models.Model):
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="quizzes"
     )
     document = models.ForeignKey(
-        Document, on_delete=models.CASCADE, related_name="quizzes"
+        Document, on_delete=models.SET_NULL, null=True, blank=True, related_name="quizzes"
     )
     title = models.CharField(max_length=255)
     difficulty = models.CharField(max_length=50, default="medium")
@@ -79,6 +79,7 @@ class Question(models.Model):
     text = models.TextField()
     options = models.JSONField(help_text="List of possible answers")
     correct_answer = models.CharField(max_length=255)
+    concept = models.CharField(max_length=255, blank=True, help_text="Core concept being tested")
     explanation = models.TextField(blank=True)
 
     def __str__(self):
